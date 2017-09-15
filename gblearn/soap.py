@@ -61,7 +61,7 @@ class SOAPCalculator(object):
                                  Z, self.trans_width))
         atoms.set_cutoff(descZ.cutoff())
         atoms.calc_connect()
-        print(PZ)
+        PZ = descZ.calc(atoms)
         if basis is not None:
             dZ = [PZ["descriptor"][b,:] for b in basis]
             return dZ
