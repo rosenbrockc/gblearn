@@ -104,6 +104,9 @@ class Timestep(object):
             if "atom:" not in key:
                 continue
             quant = key.split(':')[1]
+            if quant == "ids":
+                setattr(self, quant, np.array(raw[key]))
+                continue
             self.extras.append(quant)
             setattr(self, quant, np.array(raw[key]))
 
