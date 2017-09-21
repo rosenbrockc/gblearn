@@ -46,17 +46,14 @@ def cna_max(xyz, cna, types=None, cna_val=1, padding=5.0):
     type_mask = np.logical_and(types != 4, types != 5)
     cna_mask = np.logical_and(cna != 1, type_mask)
     xvals = xyz[cna_mask,0]
+
+    if len(xvals) == 0:
+        raise ValueError("No atoms selected at the grain boundary.")
     
     #Now that we have all atoms that deviate from perfect crystal and
     #are away from the edges, we find the minimum and maximum values
     #and add the desired padding to each.
-
-    try:
-        minx, maxx = np.min(xvals) - padding, np.max(xvals) + padding
-    except ValueError:
-        minx, maxx =   np.NaN, + np.NaN
-
-    #minx, maxx = np.min(xvals) - padding, np.max(xvals) + padding
+    minx, maxx = np.min(xvals) - padding, np.max(xvals) + padding
     result = np.where(np.logical_and(xyz[:,0] >= minx, xyz[:,0] <= maxx))[0]
     return result
 
