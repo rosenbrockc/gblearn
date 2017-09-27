@@ -234,6 +234,18 @@ def test_decompose(FCC, BCC, HCP):
     #the SOAP vector.
     from gblearn.decomposition import SOAPDecomposer
     from cPickle import load
+    import cPickle as pickle
+
+#    d = SOAPDecomposer()
+#    with open("/root/codes/gblearn/tests/decomp/dFCC.pkl", 'wb') as f:
+#        pickle.dump(d.decompose(FCC[0]),f)
+#    with open("/root/codes/gblearn/tests/decomp/dBCC.pkl", 'wb') as f:
+#        pickle.dump(d.decompose(BCC[1]),f)
+#    with open("/root/codes/gblearn/tests/decomp/dHCP.pkl", 'wb') as f:
+#        pickle.dump(d.decompose(HCP[1]),f)
+
+    
+    
     with open("tests/decomp/dFCC.pkl", 'rb') as f:
         mFCC = load(f)
     with open("tests/decomp/dBCC.pkl", 'rb') as f:
@@ -241,7 +253,7 @@ def test_decompose(FCC, BCC, HCP):
     with open("tests/decomp/dHCP.pkl", 'rb') as f:
         mHCP = load(f)
 
-    d = SOAPDecomposer()    
+    #d = SOAPDecomposer()    
     #assert mFCC == d.decompose(FCC[0])
     assert mBCC == d.decompose(BCC[1])
     assert mHCP == d.decompose(HCP[1])
