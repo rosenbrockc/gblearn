@@ -51,19 +51,7 @@ def test_timestep(tmpdir):
     tsfile = str(tmpdir.join("tsdump.out"))
     t.dump(tsfile)
     r = Timestep(tsfile)
-
-    print r.__dict__
-    print t.__dict__
-
-    assert (r.box == t.box).all
-    assert r.index == t.index
-    assert (r.c_cna == t.c_cna).all
-    assert r.periodic == t.periodic
-    assert (r.xyz == t.xyz).all
-    assert (r.ids == t.ids).all
-    assert (r.c_csd == t.c_csd).all
-    assert r.extras == t.extras
-    assert (r.types == t.types).all
+    assert r==t
     assert not (r == 10)
 
     #Test the reboxing on save:
