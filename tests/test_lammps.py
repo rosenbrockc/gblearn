@@ -51,7 +51,7 @@ def test_timestep(tmpdir):
     tsfile = str(tmpdir.join("tsdump.out"))
     t.dump(tsfile)
     r = Timestep(tsfile)
-    assert r == t
+    assert r==t
     assert not (r == 10)
 
     #Test the reboxing on save:

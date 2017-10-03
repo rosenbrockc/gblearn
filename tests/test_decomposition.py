@@ -234,6 +234,7 @@ def test_decompose(FCC, BCC, HCP):
     #the SOAP vector.
     from gblearn.decomposition import SOAPDecomposer
     from cPickle import load
+
     with open("tests/decomp/dFCC.pkl", 'rb') as f:
         mFCC = load(f)
     with open("tests/decomp/dBCC.pkl", 'rb') as f:
@@ -258,6 +259,7 @@ def test_partition():
 def test_RDF(FCC, BCC, HCP, rx):
     """Tests the RDF construction for the pure elements.
     """
+    
     NiRDF = np.load("tests/decomp/NiRDF.npy")
     CrRDF = np.load("tests/decomp/CrRDF.npy")
     MgRDF = np.load("tests/decomp/MgRDF.npy")
