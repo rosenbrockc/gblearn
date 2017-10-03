@@ -58,7 +58,8 @@ def test_soap(store):
     for each of the GBs.
     """
     #There shouldn't be anything before it is set.
-    assert store.P is None
+    with store.P[store.gbids[0]] as stored:
+        assert stored is None
 
     #First, we generate the random matrices, then we set P and get P
     #and make sure they match.
@@ -76,8 +77,10 @@ def test_soap(store):
     #Ask for a new store so that we can load the arrays from disk and
     #check their equality.
     nstore = ResultStore(range(1, 8), store.root, lmax=8, nmax=8, rcut=4.3)
+    assert len(nstore.gbids) == len(nstore.P)
     for gbid in nstore.gbids:
-        assert np.allclose(nstore.P[gbid], Ps[gbid])
+        with nstore.P[gbid] as stored:
+            assert np.allclose(stored, Ps[gbid])
 
 def test_LER(store):
     """Tests the parameterized, aggregated storage for U and LER.
