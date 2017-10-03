@@ -12,7 +12,7 @@ def test_median():
     p9 = Timestep("tests/selection/ni.p9.out")
     s9 = Timestep("tests/selection/ni.s9.out")
 
-    sind = p9.gbids()
+    sind = p9.gbids(pattr="c_csd")
     sids = p9.ids[sind]
     #Unfortunately, the order is not necessarily preserved between the
     #input and model output. Sort by the atom ids, which *should* stay
@@ -21,7 +21,7 @@ def test_median():
     assert np.allclose(np.sort(sids), np.sort(s9.ids))
 
     #Try the same thing with passing keywords args to gb()
-    sind = p9.gbids(limit_extent=(0, 10.))
+    sind = p9.gbids(limit_extent=(0, 10.), pattr="c_csd")
     sids = p9.ids[sind]
     #Unfortunately, the order is not necessarily preserved between the
     #input and model output. Sort by the atom ids, which *should* stay

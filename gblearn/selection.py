@@ -19,7 +19,7 @@ def extent(struct, axis=2):
     """
     return np.min(struct[:,axis]), np.max(struct[:,axis])
 
-def cna_max(xyz, cna, types=None, cna_val=1, padding=5.0):
+def cna_max(xyz, cna, types=None, cna_val=1, padding=5.0, coord=0):
     """Returns the atoms in the crystal whose CNA value deviates from
     the given type; a buffer of rcut is added for padding to both
     sides of the grain boundary.
@@ -38,6 +38,8 @@ def cna_max(xyz, cna, types=None, cna_val=1, padding=5.0):
         cna_val (int): type id of the *perfect crystal*.
         padding (float): how much padding to add to each side of the
           isolated grain boundary.
+        coord (int): integer coordinate `(x:0, y:1, z:2)` to select with respect
+          to.
 
     Returns:
         numpy.ndarray: of integer indices in `xyz` that match the filtering
@@ -45,7 +47,7 @@ def cna_max(xyz, cna, types=None, cna_val=1, padding=5.0):
     """
     type_mask = np.logical_and(types != 4, types != 5)
     cna_mask = np.logical_and(cna != 1, type_mask)
-    xvals = xyz[cna_mask,0]
+    xvals = xyz[cna_mask,coord]
 
     if len(xvals) == 0:
         raise ValueError("No atoms selected at the grain boundary.")
@@ -54,7 +56,7 @@ def cna_max(xyz, cna, types=None, cna_val=1, padding=5.0):
     #are away from the edges, we find the minimum and maximum values
     #and add the desired padding to each.
     minx, maxx = np.min(xvals) - padding, np.max(xvals) + padding
-    result = np.where(np.logical_and(xyz[:,0] >= minx, xyz[:,0] <= maxx))[0]
+    result = np.where(np.logical_and(xyz[:,coord] >= minx, xyz[:,coord] <= maxx))[0]
     return result
 
 def median(xyz, param, limit_extent=None, tolerance=0.5, width=8., types=None):
