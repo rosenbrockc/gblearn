@@ -2,6 +2,53 @@
 """
 import numpy as np
 from gblearn import msg
+
+def make_lattice(box):
+    """Constructs a lattice array compatible with ASE using the box dimensions
+    specified in a lammps format. This was contributed by Jonathan Priedeman.
+
+    Args:
+        box (numpy.ndarray): box dimensions in cartesian directions in
+          format `lo` `hi`. Shape `(3, 2)`. Also supports tricilinic boxes when
+          shape `(3, 3)` is specified.
+    """
+    from quippy.atoms import make_lattice
+    if box.shape == (3, 3):
+	# http://lammps.sandia.gov/doc/Section_howto.html#howto-12 Describes the
+	# methodology (look for the section entitled "6.12. Triclinic
+	# (non-orthogonal) simulation boxes") The [a, b, c, alpha, beta, gamma]
+	# vector can be passed to the ase.Atoms object as a definition for the
+	# triclinic box (note that the quippy.Atoms class inherits from
+	# ase.Atoms) Make sure that you note that the data is provided:
+	# 
+	# ITEM: BOX BOUNDS xy xz yz ....
+	# xlo_bound xhi_bound xy
+	# ylo_bound yhi_bound xz
+	# zlo_bound zhi_bound yz
+	# 
+	# whereas we need xlo, xhi, etc. not xlo_bound, xhi_bound, etc.
+	xlo = box[0][0] - min(0.0, box[0][2], box[1][2], box[0][2] + box[1][2])
+	xhi = box[0][1] - max(0.0, box[0][2], box[1][2], box[0][2] + box[1][2])
+	ylo = box[1][0] - min(0.0, box[2][2])
+	yhi = box[1][1] - max(0.0, box[2][2])
+	zlo = box[2][0]
+	zhi = box[2][1]
+
+	a = (xhi - xlo)
+	b = np.sqrt((yhi - ylo)**2 + (box[0][2])**2)
+	c = np.sqrt((zhi - zlo)**2 + (box[1][2])**2 + (box[2][2])**2)
+	alpha = np.arccos((box[0][2] * box[1][2] + (yhi - ylo) * box[2][2]) / (b * c))
+	beta = np.arccos(box[1][2] / c)
+	gamma = np.arccos(box[0][2] / b)
+	return make_lattice(a, b, c, alpha, beta, gamma)
+    
+    elif box.shape == (3, 2):
+	return make_lattice(box[0][1] - box[0][0],
+                            box[1][1] - box[1][0],
+                            box[2][1] - box[2][0])
+    else:
+        raise ValueError("Unexpected box size/parameters: {}".format(box))
+
 class Dump(object):
     """Represents a dump file that could potentially have more than one
     timestep.
@@ -76,8 +123,9 @@ class Timestep(object):
         periodic (list): of `bool` specifying whether the `x`, `y`, or `z`
           directions are periodic (for the box).
         box (numpy.ndarray): with shape (3, 2) specifying the `lo` and `hi` bounds
-          of the box in each direction.
-        extras (list): of `str` indicating extra atomic parameters that are
+          of the box in each direction. The box can also have shape
+          (3, 3) to support non-orthogonal box vectors.
+	extras (list): of `str` indicating extra atomic parameters that are
           available in this time step.
     """
     def __init__(self, filepath, index=0, openf=None, stepfilter=None):
@@ -163,12 +211,12 @@ class Timestep(object):
                                self.box, Z, extras=x, **soapargs)
         return result
         
-    def gbids(self, method="median", pattr="c_csd", **kwargs):
+    def gbids(self, method="median", pattr=None, **kwargs):
         """Returns the *indices* of the atoms that lie at the grain
         boundary.
 
         Args:
-            method (str): one of ['median', 'cna'].
+            method (str): one of ['median', 'cna', 'cna_z'].
             pattr (str): name of an attribute in :attr:`extras` to pass as the
               selection parameter of the routine.
             kwargs (dict): additional arguments passed to the atom selection
@@ -189,13 +237,15 @@ class Timestep(object):
             >>> xyz = t0.xyz[ids,:]
         """
         import gblearn.selection as sel
+        from functools import partial
         methmap = {
             "median": sel.median,
-            "cna": sel.cna_max
+            "cna": partial(sel.cna_max, coord=0),
+	    "cna_z": partial(sel.cna_max, coord=2)
             }
         if method in methmap:
-            return methmap[method](self.xyz, getattr(self, pattr),
-                                   types=self.types, **kwargs)
+            extra = getattr(self, pattr) if pattr is not None else None
+            return methmap[method](self.xyz, extra, types=self.types, **kwargs)
     
     def dump(self, filename, mode='a', rebox=False):
         """Dumps the specified structure to file in the LAMMPS format.
@@ -346,8 +396,19 @@ class Timestep(object):
                         result["periodic"] = period[1].strip().split()
                     else:
                         result["periodic"] = ("ss", "ss" ,"ss")
-                    itemstack.extend([(float, float)]*3)
-                    current = "box"
+                    
+		    # Changes by JPRIEDS to accommodate triclinic boxes
+		    # Written 170719
+		    if len(result["periodic"]) == 6:
+			itemstack.extend([(float, float, float)]*3)
+			current = "box"
+			result["periodic"] = result["periodic"][3:]
+		    elif len(result["periodic"]) == 3:
+			itemstack.extend([(float, float)]*3)
+			current = "box"
+		    else:
+                        emsg = "Could not classify periodic bounds: {}"
+                        raise ValueError(emsg.format(result["periodic"]))
                 elif "ITEM: ATOMS" in line:
                     itemstack = None
                     current = "atoms"

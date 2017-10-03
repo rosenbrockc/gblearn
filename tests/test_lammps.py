@@ -2,6 +2,13 @@
 """
 import pytest
 import numpy as np
+def test_lattice():
+    """Tests construction of a lattice from LAMMPS box.
+    """
+    from gblearn.lammps import make_lattice
+    with pytest.raises(ValueError):
+        make_lattice(np.array([[1,0]]))
+
 def test_cnasel():
     """Tests selection of GB by CNA deviation from perfect crystal.
     """
@@ -9,6 +16,10 @@ def test_cnasel():
     t = Timestep("tests/lammps/dump.in")
     gbids = t.gbids("cna", "c_cna", padding=10.)
     gb = t.gb(28, "cna", "c_cna", padding=10.)
+
+    t3 = Timestep("tests/lammps/dump-3.in")
+    with pytest.raises(ValueError):
+        gbids = t3.gbids("cna", "c_cna", padding=10.)        
 
 def test_corners():
     """Tests some corner cases for 100% code coverage with time steps.
