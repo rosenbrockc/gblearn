@@ -11,6 +11,62 @@ from os import path, mkdir
 from tqdm import tqdm
 import numpy as np
 from gblearn import msg
+from contextlib import contextmanager
+    
+class DiskCollection(object):
+    """For large grain boundary collections, it may not be possible to keep all
+    SOAP matrices and their derivatives in memory at the same time for
+    processing. In these cases, it is preferable to read a matrix in, process
+    it, and then delete it from memory right away.
+
+    Args:
+        root (str): path to the folder where the array files are stored.
+        gbids (list): of ids for each GB; the files should be stored as `id.npy`
+          in the `root` directory.
+        restricted (bool): when True, run in memory-restricted mode. Otherwise,
+          the loaded array files are cached in memory for speedy multiple
+          retrieval.
+
+    Attributes:
+        cache (dict): keys are GB ids in :attr:`gbids`; values are the
+          corresponding :class:`numpy.ndarray` files. This only has values in
+          :attr:`restricted` is False.
+        files (dict): keys are GB ids, values are paths to the numpy array files.
+    """
+    def __init__(self, root, gbids, restricted=True):
+        from collections import OrderedDict
+        self.root = path.abspath(path.expanduser(root))
+        self.files = OrderedDict([(f, path.join(self.root, "{}.npy".format(f)))
+                                  for f in gbids])
+        self.gbids = gbids
+        self.restricted = restricted
+        self.cache = {}
+
+    def __len__(self):
+        return sum([1 if path.isfile(p) else 0
+                    for p in self.files.values()])
+
+    def __setitem__(self, gbid, value):
+        gbpath = path.join(self.root, "{}.npy".format(gbid))
+        np.save(gbpath, value)
+
+        if not self.restricted:# pragma: no cover
+            self.cache[gbid] = value
+    
+    @contextmanager    
+    def __getitem__(self, key):
+        if not self.restricted and key in self.cache:# pragma: no cover
+            yield self.cache[key]
+        else:
+            target = self.files[key]
+            if not path.isfile(target):
+                yield None
+            else:
+                result = np.load(target)
+                if not self.restricted:# pragma: no cover
+                    self.cache[key] = result
+                yield result
+                del result
 
 class ResultStore(object):
     """Represents a collection of results for a
@@ -34,6 +90,9 @@ class ResultStore(object):
           collection. The store makes sure that they match for a given directory
           so that results can be kept straight.
         root (str): path to the root directory for this result store.
+        restricted (bool): when True, run in memory-restricted mode. Otherwise,
+          the loaded array files are cached in memory for speedy multiple
+          retrieval.
         soapargs (dict): arguments for the SOAP descriptor. See
           :class:`gblearn.soap.SOAPCalculator` for information.
 
@@ -51,8 +110,9 @@ class ResultStore(object):
     soapstr = ["lmax", "nmax", "rcut"]
     reps = ["P", "U", "ASR", "LER"]
     
-    def __init__(self, gbids, root=None, **soapargs):
+    def __init__(self, gbids, root=None, restricted=True, **soapargs):
         self.root = root
+        self.restricted = restricted
         if root is not None:
             self.root = path.abspath(path.expanduser(root))
             for r in self.reps:
@@ -187,16 +247,7 @@ class ResultStore(object):
 
         rpath = getattr(self, attr + '_')
         target = path.join(rpath, self.SOAP_str)
-        if not path.isdir(target):
-            return
-
-        result = {}
-        for gbid in tqdm(self.gbids):
-            gbpath = path.join(target, "{}.npy".format(gbid))
-            if path.isfile(gbpath):
-                result[gbid] = np.load(gbpath)
-
-        assert len(result) == len(self.gbids) or len(result) == 0
+        result = DiskCollection(target, self.gbids, self.restricted)
         setattr(self, '_' + attr, result)
         return result
 
@@ -214,11 +265,10 @@ class ResultStore(object):
             msg.err("The number of GBs in the specified set does not match "
                     "the result store configuration.")
             return
-        
-        setattr(self, '_' + attr, value)
 
         #Handle the memory-only case.
         if self.root is None:
+            setattr(self, '_' + attr, value)
             return
 
         rpath = getattr(self, attr + '_')
@@ -226,10 +276,12 @@ class ResultStore(object):
         if not path.isdir(target):
             mkdir(target)
 
+        dc = DiskCollection(target, self.gbids, self.restricted)
+        setattr(self, '_' + attr, dc)
+            
         saved = []
         for gbid, A in tqdm(value.items()):
-            gbpath = path.join(target, "{}.npy".format(gbid))
-            np.save(gbpath, A)
+            dc[gbid] = A
             saved.append(gbid)
 
         assert len(np.setdiff1d(self.gbids, saved)) == 0
@@ -259,7 +311,7 @@ class ResultStore(object):
         Args:
             value (dict): keys are epsilon value controlling when two LAEs are
               similar; values are the same as returned by
-              :func:`~gblearn.reduce.unique`.
+              :meth:`~gblearn.gb.GrainBoundaryCollection.uniquify`.
         """
         self._agg_set("U", value)
     
