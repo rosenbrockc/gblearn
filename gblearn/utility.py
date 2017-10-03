@@ -36,8 +36,8 @@ def _get_reporoot():
     """
     from os import path
     import gblearn
-    sezpath = path.abspath(gblearn.__file__)
-    return path.dirname(path.dirname(sezpath))
+    gblpath = path.abspath(gblearn.__file__)
+    return path.dirname(path.dirname(gblpath))
 
 reporoot = _get_reporoot()
 """The absolute path to the repo root on the local machine.
