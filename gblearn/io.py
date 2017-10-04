@@ -35,7 +35,11 @@ class DiskCollection(object):
     """
     def __init__(self, root, gbids, restricted=True):
         from collections import OrderedDict
+        from os import mkdir
         self.root = path.abspath(path.expanduser(root))
+        if not path.isdir(self.root):
+            mkdir(self.root)
+            
         self.files = OrderedDict([(f, path.join(self.root, "{}.npy".format(f)))
                                   for f in gbids])
         self.gbids = gbids
@@ -336,6 +340,9 @@ class ResultStore(object):
         result = {}
         rpath = getattr(self, attr + '_')
         target = path.join(rpath, self.SOAP_str)
+        if not path.isdir(target):
+            return result
+        
         with chdir(target):
             for pkl in glob("*.pkl"):
                 seps = pkl[:-4]
