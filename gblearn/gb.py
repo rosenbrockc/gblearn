@@ -19,7 +19,8 @@ class GrainBoundaryCollection(OrderedDict):
         root (str): path to the directory where the raw GB atomic descriptions
           are located.
         store (str): path to the :class:`~gblearn.io.ResultStore` root
-          directory that this collection's results are stored in.
+          directory that this collection's results are stored in. To use a
+          memory-only store, leave this as `None`.
         rxgbid (str): regex pattern for extracting the `gbid` for each GB. Any
           files that don't match the regex are automatically excluded. The regex
           should include a named group `(?P<gbid>...)` so that the GB id can be
@@ -83,10 +84,8 @@ class GrainBoundaryCollection(OrderedDict):
         self.gbfiles = OrderedDict()
         self._find_gbs()
 
-        self.store = None
-        if store is not None:
-            from gblearn.io import ResultStore
-            self.store = ResultStore(self.gbfiles.keys(), store, **soapargs)
+        from gblearn.io import ResultStore
+        self.store = ResultStore(self.gbfiles.keys(), store, **soapargs)
         
     def _find_gbs(self):
 
@@ -133,48 +132,32 @@ class GrainBoundaryCollection(OrderedDict):
             from gblearn.lammps import Timestep
             parser = Timestep
         kwargs["soapargs"] = self.soapargs
+        kwargs["padding"] = self.soapargs["rcut"]*2
             
         for gbid, gbpath in tqdm(self.gbfiles.items()):
             t = Timestep(gbpath)
             gb = t.gb(**kwargs)
             self[gbid] = gb
 
-    def soap(self, subsel="cna", subpar="c_cna", **kwargs):
+    def soap(self):
         """Calculates the SOAP vector matrix for the atomic environments at
         each grain boundary.
-
-        Args:
-            subsel (str): method for subselection of atoms to include
-              in the SOAP descriptor. One of ["median", "cna"].
-            subpar (str): name of the parameter to pass to the selection
-              routine.
-            kwargs (dict): additional arguments to pass to the selection
-              routine.
         """
-        if self.store is not None:
-            P = self.store.P
-        else:
-            P = {}
+        P = self.store.P
 
         if len(P) == len(self):
             #No need to recompute if the store has the result.
             return P
             
         for gbid, gb in tqdm(self.items()):
-            P[gbid] = gb.soap(subsel, subpar, **kwargs)
-
-        if self.store is None:
-            return P
+            P[gbid] = gb.soap()
             
     @property
     def P(self):
         """Returns the computed SOAP matrices for each GB in the collection.
         """
-        result = None
-        if self.store is not None:
-            result = self.store.P
-
-        if result is None or len(result) == 0:
+        result = self.store.P
+        if len(result) == 0:
             msg.info("The SOAP matrices haven't been computed yet. Use "
                      ":meth:`soap`.")
             
@@ -184,20 +167,17 @@ class GrainBoundaryCollection(OrderedDict):
     def ASR(self):
         """Returns the ASR for the GB collection.
         """
-        result = None
-        if self.store is not None:
-            result = self.store.ASR
-
-        if result is None and self.P is not None:
-            P = self.P
+        result = self.store.ASR
+        P = self.P
+        
+        if result is None and len(P) > 0:
             soaps = []
             for gbid in P.gbids:
                 with P[gbid] as Pi:
                     soaps.append(np.sum(Pi, axis=0))
 
             result = np.vstack(soaps)
-            if self.store is not None:
-                self.store.ASR = result
+            self.store.ASR = result
 
         return result
 
@@ -209,15 +189,14 @@ class GrainBoundaryCollection(OrderedDict):
             eps (float): similarity threshlod parameter.
         """
         result = None
-        if self.store is not None:
-            U = self.store.U
-            if eps in U:
-                result = U[eps]
+        U = self.store.U
+        if eps in U:
+            result = U[eps]
 
         if result is None:
             result = self.uniquify(eps)
-            if self.store is not None:
-                self.store.U = result
+            U[eps] = result
+            self.store.U = U
 
 	#Just grab the atom ids from each list and then assign that
 	#particular atom the corresponding unique signature. Note that
@@ -261,8 +240,11 @@ class GrainBoundaryCollection(OrderedDict):
         }
         
         #We pre-seed the list of unique environments with perfect FCC.
+        if self.seed is None:
+            raise ValueError("Cannot uniquify LAEs without a seed LAE.")
+        
         U = OrderedDict()
-	U[(0, 0)] = self.seed
+	U[('0', 0)] = self.seed
         
 	for gbid in tqdm(self.gbfiles):
             with self.P[gbid] as NP:
@@ -284,12 +266,13 @@ class GrainBoundaryCollection(OrderedDict):
         #Populate the result dict with the final unique LAEs. We want to store
         #these ordered by similarity to the seed U.
         from gblearn.soap import S
+        from operator import itemgetter
         K = {u: S(v, self.seed) for u, v in U.items()}
         Us = OrderedDict(sorted(K.items(), key=itemgetter(1), reverse=True))
-        result["U"] = Us
+        result["U"] = OrderedDict([(u, U[u]) for u in Us])
         return result
                 
-    def _uniquify(self, NP, PID, uni, eps):
+    def _uniquify(self, NP, gbid, uni, eps):
         """Runs the first unique identification pass through the collection. Calculates
         the unique SOAP vectors in the given GB relative to the current set of
         unique ones.
@@ -298,7 +281,7 @@ class GrainBoundaryCollection(OrderedDict):
 
         Args:
             NP (numpy.ndarray): matrix of SOAP vectors for the grain boundary.
-            PID (int): integer id of the grain boundary in the publication set.
+            gbid (str): id of the grain boundary in the publication set.
             uni (dict): keys are `tuple` of (PID, VID) with `PID` the
               publication Id of the grain boundary and `VID` the id of the SOAP
               vector in that GBs descriptor matrix. Value is the actual SOAP
@@ -318,8 +301,8 @@ class GrainBoundaryCollection(OrderedDict):
 		if K < eps:
                     #This vector already has at least one possible classification
         	    break
-		else:
-		    uni[(PID, i)] = Pv
+	    else:
+		uni[(gbid, i)] = Pv
 
     def _classify(self, NP, PID, uni, eps, used):
         """Runs through the collection a second time to reclassify each
@@ -369,10 +352,9 @@ class GrainBoundaryCollection(OrderedDict):
               local environments of each type in each GB. 
         """
         result = None
-        if self.store is not None:
-            LER = self.store.LER
-            if eps in LER:
-                result = LER[eps]
+        LER = self.store.LER
+        if eps in LER:
+            result = LER[eps]
 
         if result is None:
             U = self.U(eps)
@@ -384,8 +366,7 @@ class GrainBoundaryCollection(OrderedDict):
                     result[gbi,ui] = LAEs = self[gbid].LAEs.count(uid)
                 result[gbi,:] /= np.sum(result[gbi,:])
 
-            if self.store is not None:
-                self.store.LER = result
+            self.store.LER = result
             
         return result
     
@@ -404,6 +385,9 @@ class GrainBoundary(object):
         Z (int or list): element code(s) for the atomic species.
         extras (dict): keys are additional atomic attributes; values are lists
           of attribute values. Value arrays must have same length as `xyz`.
+        selectargs (dict): keyword arguments passed to the selection routine
+          that sliced the GB atoms in the first place. Needed to ensure
+          consistency when SOAP matrix is constructed.
         soapargs (dict): keyword arguments to pass to the constructor of the
           :class:`~gblearn.soap.SOAPCalculator` that will be used to calculate
           the `P` matrix for this GB.
@@ -421,7 +405,8 @@ class GrainBoundary(object):
         LAEs (list): of tuple with `(PID, VID)` corresponding to the unique LAE
           number in the collection's global unique set.
     """
-    def __init__(self, xyz, types, box, Z, extras=None, **soapargs):
+    def __init__(self, xyz, types, box, Z, extras=None, selectargs=None,
+                 **soapargs):
         from gblearn.soap import SOAPCalculator
         from gblearn.lammps import make_lattice
         self.xyz = xyz
@@ -430,11 +415,21 @@ class GrainBoundary(object):
         self.lattice = make_lattice(box)
         self.calculator = SOAPCalculator(**soapargs)
         self.Z = Z
-        self.LAEs = [(None, None) for i in range(len(self.xyz))]
-        
+        self.LAEs = None
+
+        #For the selection, if padding is present in the dictionary, reduce the
+        #padding by half so that all the atoms at the GB get a full SOAP
+        #environment.
+        self.selectargs = selectargs
+        if "padding" in self.selectargs:
+            self.selectargs["padding"] /= 2
+
         if extras is not None:
+            self.extras = extras.keys()
             for k, v in extras.items():
                 setattr(self, k, v)
+        else:
+            self.extras = []    
         
         self.P = None
         self._atoms = None
@@ -486,8 +481,57 @@ class GrainBoundary(object):
         from os import path
         if path.isfile(filepath):
             setattr(self, attr, np.load(filepath))
-    
-    def soap(self, subsel=None, subpar=None, **kwargs):
+
+    @property
+    def gbids(self):
+        """Calculates the set of atom ids that fall within the padding/cutoff
+        parameters used for initial atom selection.
+
+        Returns:
+            numpy.ndarray: of ids in this GBs atoms list that fall within the
+            padding constraints of the selection.
+        """
+        import gblearn.selection as sel
+        from functools import partial
+        methmap = {
+            "median": sel.median,
+            "cna": partial(sel.cna_max, coord=0),
+            "cna_z": partial(sel.cna_max, coord=2)
+        }
+        #Use the same selection parameters that were used to construct
+        #the GB in the first place. However, the padding parameter will
+        #have been updated in the constructor.
+        subpar = self.selectargs["pattr"]
+        subsel = self.selectargs["method"]
+        if subsel in methmap:
+            ids = methmap[subsel](self.xyz, getattr(self, subpar),
+                                  types=self.types, **self.selectargs)
+            return ids
+            
+    def trim(self, ids=None):
+        """Trims the atoms list, types list and any extras in this GB object so
+        that it only includes atoms that fall within the cutoff constraints of
+        the selection.
+
+        Args:
+            ids (numpy.ndarray): of atom ids in the list that should be kept. If
+              not provided, it will be calculated from :attr:`gbids`.
+        """
+        if ids is None:
+            ids = self.gbids
+            
+        #Since we applied padding to the SOAP vectors again, we need
+        #to restrict the XYZ coordinates and other extras of the GB
+        #to conform to the new size.
+        self._atoms = None
+        self.xyz = self.xyz[ids,:]
+        self.types = self.types[ids]
+        self.LAEs = [(None, None) for i in range(len(self.xyz))]
+        for k in self.extras:
+            current = getattr(self, k)
+            setattr(self, k, np.array(current)[ids])
+            
+    def soap(self):
         """Calculates the SOAP vector matrix for the atomic environments at the
         grain boundary.
 
@@ -500,17 +544,14 @@ class GrainBoundary(object):
               routine.
         """
         if self.P is None:
-            self.P = self.calculator.calc(self.atoms, self.Z)
+            raw = self.calculator.calc(self.atoms, self.Z)
+            self.P = raw["descriptor"]
+            self._NP = None
+            self._K = None
 
-            if subsel is not None:
-                import gblearn.selection as sel
-                methmap = {
-                    "median": sel.median,
-                    "cna": sel.cna_max
-                }
-                if subsel in methmap:
-                    ids = methmap[subsel](self.xyz, getattr(self, subpar),
-                                          types=self.types, **kwargs)
+            if "padding" in self.selectargs:
+                ids = self.gbids
+                if ids is not None:
                     self.P = self.P[ids,:]
 
         return self.P

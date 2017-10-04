@@ -191,7 +191,7 @@ class Timestep(object):
               :class:`gblearn.soap.SOAPCalculator` instance for the GB.
             kwargs (dict): additional arguments passed to the atom selection
               function. For `median`, see :func:`gblearn.selection.median` for the
-              arguments.
+              arguments. For `cna*` see :func:`gblearn.selection.cna_max`.
         
         Returns:
             gblearn.gb.GrainBoundary: instance with only those atoms that appear
@@ -202,13 +202,21 @@ class Timestep(object):
                              ":class:`GrainBoundary` instance.")
         
         from gblearn.gb import GrainBoundary
-        ids = self.gbids(method, pattr, **kwargs)
+        selectargs = {
+            "method": method,
+            "pattr": pattr
+        }
+        selectargs.update(kwargs)
+        
+        ids = self.gbids(**selectargs)
+        
         if extras:
             x = {k: getattr(self, k)[ids] for k in self.extras}
         else:
             x = None
         result = GrainBoundary(self.xyz[ids,:], self.types[ids],
-                               self.box, Z, extras=x, **soapargs)
+                               self.box, Z, extras=x,
+                               selectargs=selectargs, **soapargs)
         return result
         
     def gbids(self, method="median", pattr=None, **kwargs):

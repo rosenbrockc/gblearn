@@ -19,7 +19,7 @@ def extent(struct, axis=2):
     """
     return np.min(struct[:,axis]), np.max(struct[:,axis])
 
-def cna_max(xyz, cna, types=None, cna_val=1, padding=5.0, coord=0):
+def cna_max(xyz, cna, types=None, cna_val=1, padding=5.0, coord=0, **kwargs):
     """Returns the atoms in the crystal whose CNA value deviates from
     the given type; a buffer of rcut is added for padding to both
     sides of the grain boundary.
@@ -40,6 +40,8 @@ def cna_max(xyz, cna, types=None, cna_val=1, padding=5.0, coord=0):
           isolated grain boundary.
         coord (int): integer coordinate `(x:0, y:1, z:2)` to select with respect
           to.
+        kwargs (dict): dummy parameter so that selection routines can all accept
+          the same dictionary.
 
     Returns:
         numpy.ndarray: of integer indices in `xyz` that match the filtering
