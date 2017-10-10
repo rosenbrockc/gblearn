@@ -18,7 +18,7 @@ except ImportError:
 
 from os import path
 setup(name='gblearn',
-      version='0.0.4',
+      version='0.2.1',
       description='Machine learning grain boundary properties and structure.',
       long_description= "" if not path.isfile("README.md") else read_md('README.md'),
       author='Conrad W Rosenbrock',
@@ -38,7 +38,7 @@ setup(name='gblearn',
       package_data={'gblearn': []},
       include_package_data=False,
       classifiers=[
-          'Development Status :: 2 - Pre-Alpha',
+          'Development Status :: 4 - Beta',
           'Intended Audience :: Science/Research',
           'Natural Language :: English',
           'Operating System :: MacOS',
