@@ -230,9 +230,6 @@ class GrainBoundaryCollection(OrderedDict):
             `gbid` keys and values being a `dict` keyed by unique LAEs with values a
             list of `(PID, VID)` identifiers from the global GB collection.
         """
-        if self.P is None:
-            return
-
         from tqdm import tqdm
         result = {
             "U": None,
@@ -258,9 +255,10 @@ class GrainBoundaryCollection(OrderedDict):
                 LAEs = self._classify(NP, gbid, U, eps, used)      			
             	result["GBs"][gbid] = LAEs
 
-        #Now, remove any LAEs from U that didn't get used.
+        #Now, remove any LAEs from U that didn't get used. We shouldn't really
+        #have many of these.
         for k, v in used.items():
-            if not v:
+            if not v:# pragma: no cover
                 del U[k]
                 
         #Populate the result dict with the final unique LAEs. We want to store
@@ -332,7 +330,9 @@ class GrainBoundaryCollection(OrderedDict):
 	    if K0 < eps:
 		result[U0].append((PID, i))
 		used[U0] = True
-	    else:
+	    else:# pragma: no cover
+                #This is just a catch warning; it should never happen in
+                #practice.
                 wmsg = "There was an unclassifiable SOAP vector: {}"
                 msg.warn(wmsg.format((PID, i)))
                 
@@ -360,13 +360,17 @@ class GrainBoundaryCollection(OrderedDict):
             U = self.U(eps)
         
             #Next, loop over each GB and count how many of each kind it has.
-            result = np.zeros((len(self), len(U)))
+            result = np.zeros((len(self), len(U["U"])))
             for gbi, gbid in enumerate(self):
-                for ui, uid in enumerate(U):
-                    result[gbi,ui] = LAEs = self[gbid].LAEs.count(uid)
-                result[gbi,:] /= np.sum(result[gbi,:])
+                for ui, uid in enumerate(U["U"]):
+                    result[gbi,ui] = self[gbid].LAEs.count(uid)
+                #Normalize by the total number of atoms of each type
+                N = np.sum(result[gbi,:])
+                assert N == len(self[gbid])
+                result[gbi,:] /= N
 
-            self.store.LER = result
+            LER[eps] = result
+            self.store.LER = LER
             
         return result
     
@@ -454,7 +458,7 @@ class GrainBoundary(object):
         norm.
         """
         if self._NP is None:
-            P = self.soap
+            P = self.soap()
             pself = np.array([np.dot(p, p) for p in P])
             self._NP = np.array([P[i,:]/np.sqrt(pself[i])
                                  for i in range(len(P))
