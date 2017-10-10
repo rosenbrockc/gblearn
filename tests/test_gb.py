@@ -4,11 +4,11 @@ collection methods.
 import pytest
 from os import path
 import numpy as np
-
+from gblearn.utility import reporoot
+    
 @pytest.fixture
 def GBCol(tmpdir):
     from gblearn.gb import GrainBoundaryCollection as GBC
-    from gblearn.utility import reporoot
     gbpath = path.join(reporoot, "tests", "homer")
     root = str(tmpdir.join("homer"))
     result = GBC("homer", gbpath, root, r"ni.p(?P<gbid>\d+).out",
@@ -30,6 +30,27 @@ def GB9(request):
     p9 = Timestep("tests/selection/ni.p9.out")
     return p9.gb(28)
 
+def test_K(GB9):
+    """Tests generation of the kernel matrix for the GB.
+    """
+    K = GB9.K
+
+def test_gb(GB9, tmpdir):
+    """Tests the basic grain boundary instance attributes and methods
+    (i.e., those that don't interact with other modules).
+    """
+    assert len(GB9) == 644
+    a = GB9.atoms
+    assert a.n == 644
+
+    fxyz = str(tmpdir.join("s9.xyz"))
+    GB9.save_xyz(fxyz, "Ni")
+
+    from quippy import Atoms
+    A = Atoms(fxyz)
+    B = Atoms("tests/gb/s9.xyz")
+    assert A.equivalent(B)
+    
 def _preload_soap(GBCol):
     """Preloads all the SOAP matrices into the GB collection to speed up
     computations.
@@ -54,14 +75,12 @@ def _preload_soap(GBCol):
 
     return N
 
-@pytest.mark.skip()
 def test_gbids(GBCol):
     assert list(GBCol.gbfiles.keys()) == list(map(str, range(453, 460)))
 
     #We also need to test the case where there is *no* regex specified, so we
     #just get the file names as GB ids.
     from gblearn.gb import GrainBoundaryCollection as GBC
-    from gblearn.utility import reporoot
     gbpath = path.join(reporoot, "tests", "homer")
     col = GBC("homer", gbpath,
               rcut=3.25, lmax=12, nmax=12, sigma=0.5)
@@ -70,7 +89,6 @@ def test_gbids(GBCol):
              ["README.md"])
     assert list(sorted(col.gbfiles.keys())) == sorted(model)
 
-@pytest.mark.skip()
 def test_gbsoap(GBCol):
     """Tests construction of grain boundary objects for each of dump files found
     in the testing directory.
@@ -87,7 +105,6 @@ def test_gbsoap(GBCol):
     #Make sure it doesn't recompute if they're all there.
     assert GBCol.soap() is GBCol.P
 
-@pytest.mark.skip()
 def test_ASR(GBCol):
     """Tests construction of ASR.
     """
@@ -97,7 +114,7 @@ def test_ASR(GBCol):
     ASR = GBCol.ASR               
     assert ASR.shape == (len(GBCol), N)
 
-def test_LER(GBCol):
+def test_uniquify(GBCol):
     """Tests the unique LAE extraction and GB classification to create the LER.
     """
     #Speed up the test by pre-loading the SOAP matrices. Their construction is
@@ -108,7 +125,6 @@ def test_LER(GBCol):
         U = GBCol.U(eps)
 
     #Now, assign the seed for the perfect FCC lattice
-    from gblearn.utility import reporoot
     seed = np.loadtxt(path.join(reporoot, "tests", "elements", "Ni.pissnnl_seed.txt"))
     GBCol.seed = seed
     U = GBCol.U(eps)
@@ -135,27 +151,30 @@ def test_LER(GBCol):
         ours = np.hstack((ids, gb.xyz, np.array(gb.LAEs, dtype=int)))
         assert np.allclose(ours, model)
 
-    
-    
-@pytest.mark.skip()
-def test_gb(GB9, tmpdir):
-    """Tests the basic grain boundary instance attributes and methods
-    (i.e., those that don't interact with other modules).
+def _preload_U(GBCol, eps):
+    """Preloads the set of unique vectors and the assignment of specific atoms
+    to LAEs in the GB objects.
     """
-    assert len(GB9) == 644
-    a = GB9.atoms
-    assert a.n == 644
-
-    fxyz = str(tmpdir.join("s9.xyz"))
-    GB9.save_xyz(fxyz, "Ni")
-    with open(fxyz) as f:
-        tfile = f.read()
-    with open("tests/gb/s9.xyz") as f:
-        mfile = f.read()
-    assert tfile == mfile
-
-@pytest.mark.skip()
-def test_K(GB9):
-    """Tests generation of the kernel matrix for the GB.
+    from cPickle import load
+    upkl = path.join(reporoot, "tests", "unique", "U.pkl")
+    with open(upkl, 'rb') as f:
+        U = load(f)
+    GBCol.store.U = {eps: U}
+    assert isinstance(GBCol.U(eps), dict)
+    
+def test_LER(GBCol):
+    """Tests construction of the LER.
     """
-    K = GB9.K
+    #Speed up the test by pre-loading the SOAP matrices. Their construction is
+    #tested separately.
+    N = _preload_soap(GBCol)
+    eps = 0.002500
+    #We also want to pre-load the unique vectors.
+    _preload_U(GBCol, eps)
+
+    LER = GBCol.LER(eps)
+    U = GBCol.U(eps)
+    assert LER.shape == (len(GBCol), len(U["U"]))
+    
+    model = np.load(path.join(reporoot, "tests", "unique", "LER.pkl"))
+    assert np.allclose(LER, model)
