@@ -52,6 +52,8 @@ class GrainBoundaryCollection(OrderedDict):
           a list of `aid` in the GB whose LAEs that are equivalent to the unique
           LAE represented by the key.
         soapargs (dict): key-value pairs for constructing the SOAP descriptor.
+        properties (dict): keys are property names, values are `dict` keyed by
+          `gbid` with values being the property value for each GB.
     """
     def __init__(self, name, root, store=None, rxgbid=None, sortkey=None,
                  reverse=False, seed=None, **soapargs):
@@ -73,6 +75,7 @@ class GrainBoundaryCollection(OrderedDict):
         """
         self.unique = {}
         self.equivalent = {}
+        self.properties = {}
         self.seed = seed
         self.soapargs = soapargs
         
@@ -86,6 +89,57 @@ class GrainBoundaryCollection(OrderedDict):
 
         from gblearn.io import ResultStore
         self.store = ResultStore(self.gbfiles.keys(), store, **soapargs)
+
+    def get_property(self, name):
+        """Builds a value vector for a property in this collection.
+
+        Args:
+            name (str): name of the property to build the vector for.
+        """
+        values = self.properties[name]
+        return np.array([values[gbid] for gbid in self])
+        
+    def add_property(self, name, filename=None, values=None, colindex=1,
+                     delimiter=None, cast=float, skip=0):
+        """Adds a property to each GB in the collection from file or an existing
+        dictionary.
+
+        .. note:: You must specify either `filename` or `values`.
+
+        Args:
+            name (str): name of the property to index under.
+            filename (str): path to the file to import from. First column should
+              be the `gbid`. Values are taken from `colindex` and `cast` to the
+              specified data type.
+            values (dict): keys are `gbid`, values are property values.
+            colindex (int): index in the text file to extract values from.
+            delimiter (str): delimiter to split on for each row in the file.
+            cast: function to apply to the value for this property.
+            skip (int): number of rows to skip before reading data.
+        """
+        if values is not None:
+            self.properties[name] = values
+            return
+
+        #Extract the gbids directly from the first column before we do the array
+        #loading.
+        pdict = {}
+        iskip = 0
+        with open(filename) as f:
+            for line in f:
+                if iskip < skip:
+                    continue
+                
+                if delimiter is None:
+                    rvals = line.split()
+                else:
+                    rvals = line.split(delimiter)
+
+                gbid = rvals[0]
+                pval = cast(rvals[colindex])
+                pdict[gbid] = pval
+
+        self.properties[name] = pdict
         
     def _find_gbs(self):
 

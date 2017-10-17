@@ -30,6 +30,18 @@ def GB9(request):
     p9 = Timestep("tests/selection/ni.p9.out")
     return p9.gb(28)
 
+def test_properties(GBCol):
+    """Tests the loading and reading of properties for a GB collection.
+    """
+    pdict = {str(i): i + 10.5 for i in range(453, 460)}
+    model = np.array([i + 10.5 for i in range(453, 460)])
+    GBCol.add_property("fromdict", values=pdict)
+    assert np.allclose(model, GBCol.get_property("fromdict"))
+
+    valfile = path.join(reporoot, "tests", "homer", "energy.txt")
+    GBCol.add_property("fromfile", valfile)
+    assert np.allclose(model, GBCol.get_property("fromfile"))
+
 def test_K(GB9):
     """Tests generation of the kernel matrix for the GB.
     """
