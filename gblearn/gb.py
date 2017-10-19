@@ -204,7 +204,7 @@ class GrainBoundaryCollection(OrderedDict):
             return P
             
         for gbid, gb in tqdm(self.items()):
-            P[gbid] = gb.soap()
+            P[gbid] = gb.soap(cache=False)
             
     @property
     def P(self):
@@ -589,29 +589,29 @@ class GrainBoundary(object):
             current = getattr(self, k)
             setattr(self, k, np.array(current)[ids])
             
-    def soap(self):
+    def soap(self, cache=True):
         """Calculates the SOAP vector matrix for the atomic environments at the
         grain boundary.
 
         Args:
-            subsel (str): method for subselection of atoms to include
-              in the SOAP descriptor. One of ["median", "cna"].
-            subpar (str): name of the parameter to pass to the selection
-              routine.
-            kwargs (dict): additional arguments to pass to the selection
-              routine.
+            cache (bool): when True, cache the resulting SOAP matrix.
         """
         if self.P is None:
             raw = self.calculator.calc(self.atoms, self.Z)
-            self.P = raw["descriptor"]
+            P = raw["descriptor"]
             self._NP = None
             self._K = None
 
             if "padding" in self.selectargs:
                 ids = self.gbids
                 if ids is not None:
-                    self.P = self.P[ids,:]
+                    P = P[ids,:]
 
+            if cache:
+                self.P = P
+            else:
+                return P
+                    
         return self.P
 
     @property
