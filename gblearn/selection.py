@@ -47,8 +47,11 @@ def cna_max(xyz, cna, types=None, cna_val=1, padding=5.0, coord=0, **kwargs):
         numpy.ndarray: of integer indices in `xyz` that match the filtering
           conditions.
     """
-    type_mask = np.logical_and(types != 4, types != 5)
-    cna_mask = np.logical_and(cna != 1, type_mask)
+    if types is not None:
+        type_mask = np.logical_and(types != 4, types != 5)
+        cna_mask = np.logical_and(cna != cna_val, type_mask)
+    else:
+        cna_mask = cna != cna_val
     xvals = xyz[cna_mask,coord]
 
     if len(xvals) == 0:

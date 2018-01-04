@@ -189,7 +189,7 @@ class GrainBoundaryCollection(OrderedDict):
         kwargs["padding"] = self.soapargs["rcut"]*2
             
         for gbid, gbpath in tqdm(self.gbfiles.items()):
-            t = Timestep(gbpath)
+            t = parser(gbpath)
             gb = t.gb(**kwargs)
             self[gbid] = gb
 
@@ -446,6 +446,9 @@ class GrainBoundary(object):
         selectargs (dict): keyword arguments passed to the selection routine
           that sliced the GB atoms in the first place. Needed to ensure
           consistency when SOAP matrix is constructed.
+        makelat (bool): when True, use the :func:`gblearn.lammps.make_lattice`
+          function to construct the lattice from `box`; otherwise, use `box` as
+          the lattice.
         soapargs (dict): keyword arguments to pass to the constructor of the
           :class:`~gblearn.soap.SOAPCalculator` that will be used to calculate
           the `P` matrix for this GB.
@@ -464,13 +467,18 @@ class GrainBoundary(object):
           number in the collection's global unique set.
     """
     def __init__(self, xyz, types, box, Z, extras=None, selectargs=None,
-                 **soapargs):
+                 makelat=True, **soapargs):
         from gblearn.soap import SOAPCalculator
         from gblearn.lammps import make_lattice
         self.xyz = xyz
         self.types = types
-        self.box = box
-        self.lattice = make_lattice(box)
+        if makelat:
+            self.box = box
+            self.lattice = make_lattice(box)
+        else:
+            self.box = None
+            self.lattice = box
+            
         self.calculator = SOAPCalculator(**soapargs)
         self.Z = Z
         self.LAEs = None
@@ -583,7 +591,8 @@ class GrainBoundary(object):
         #to conform to the new size.
         self._atoms = None
         self.xyz = self.xyz[ids,:]
-        self.types = self.types[ids]
+        if self.types is not None:
+            self.types = self.types[ids]
         self.LAEs = [(None, None) for i in range(len(self.xyz))]
         for k in self.extras:
             current = getattr(self, k)
