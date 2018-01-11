@@ -19,10 +19,10 @@ class XYZParser(object):
     def __init__(self, filepath):
         self.filepath = filepath
         self.atoms = quippy.Atoms(filepath)
-        self.xyz = self.atoms.pos
-        self.extras = list(self.atoms.params.keys())
+        self.xyz = self.atoms.positions
+        self.extras = list(self.atoms.properties.keys())
         for k in self.extras:
-            setattr(self, k, self.atoms.params[k])
+            setattr(self, k, self.atoms.properties[k])
         self.types = None
 
     def __eq__(self, other):
@@ -73,7 +73,7 @@ class XYZParser(object):
                                selectargs=selectargs, **soapargs)
         return result
 
-    def gbids(self, method="median", pattr=None, **kwargs):
+    def gbids(self, method="median", pattr=None, cna_val=3, **kwargs):
         """Returns the *indices* of the atoms that lie at the grain
         boundary.
 
@@ -81,6 +81,7 @@ class XYZParser(object):
             method (str): one of ['median', 'cna', 'cna_z'].
             pattr (str): name of an attribute in :attr:`extras` to pass as the
               selection parameter of the routine.
+            cna_val (int): type id of the *perfect crystal*.
             kwargs (dict): additional arguments passed to the atom selection
               function. For `median`, see :func:`gblearn.selection.median` for the
               arguments.
@@ -102,8 +103,8 @@ class XYZParser(object):
         from functools import partial
         methmap = {
             "median": sel.median,
-            "cna": partial(sel.cna_max, coord=0),
-	    "cna_z": partial(sel.cna_max, coord=2)
+            "cna": partial(sel.cna_max, coord=0, cna_val=cna_val),
+	    "cna_z": partial(sel.cna_max, coord=2, cna_val=cna_val)
             }
         if method in methmap:
             extra = getattr(self, pattr) if pattr is not None else None
