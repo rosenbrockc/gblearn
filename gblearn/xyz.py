@@ -73,7 +73,7 @@ class XYZParser(object):
                                selectargs=selectargs, **soapargs)
         return result
 
-    def gbids(self, method="median", pattr=None, cna_val=3, **kwargs):
+    def gbids(self, method="median", pattr=None, **kwargs):
         """Returns the *indices* of the atoms that lie at the grain
         boundary.
 
@@ -103,8 +103,8 @@ class XYZParser(object):
         from functools import partial
         methmap = {
             "median": sel.median,
-            "cna": partial(sel.cna_max, coord=0, cna_val=cna_val),
-	    "cna_z": partial(sel.cna_max, coord=2, cna_val=cna_val)
+            "cna": partial(sel.cna_max, coord=0),
+	    "cna_z": partial(sel.cna_max, coord=2)
             }
         if method in methmap:
             extra = getattr(self, pattr) if pattr is not None else None
