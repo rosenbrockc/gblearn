@@ -15,6 +15,7 @@ class XYZParser(object):
         extras (list): of `str` parameter names with additional, global GB
           properties.
         types (numpy.ndarray): integer lattice types of the atoms in the list.
+
     """
     def __init__(self, filepath):
         self.filepath = filepath
@@ -24,7 +25,9 @@ class XYZParser(object):
         for k in self.extras:
             setattr(self, k, self.atoms.properties[k])
         self.types = None
+        self.box = None
 
+        
     def __eq__(self, other):
         return self.atoms == other.atoms
     def __len__(self):
@@ -63,12 +66,17 @@ class XYZParser(object):
         selectargs.update(kwargs)
         
         ids = self.gbids(**selectargs)
-        
+
         if extras:
-            x = {k: getattr(self, k)[ids] for k in self.extras}
+            x = {k: getattr(self, k)[ids+1] for k in self.extras}
         else:
             x = None
-        result = GrainBoundary(self.xyz[ids,:], self.types[ids],
+        if self.types is not None:
+            types = self.types[ids]
+        else:
+            types = None
+
+        result = GrainBoundary(self.xyz[ids,:], types,
                                self.box, Z, extras=x,
                                selectargs=selectargs, **soapargs)
         return result
