@@ -15,19 +15,16 @@ class XYZParser(object):
         extras (list): of `str` parameter names with additional, global GB
           properties.
         types (numpy.ndarray): integer lattice types of the atoms in the list.
-
     """
     def __init__(self, filepath):
         self.filepath = filepath
         self.atoms = quippy.Atoms(filepath)
-        self.xyz = self.atoms.positions
-        self.extras = list(self.atoms.properties.keys())
+        self.xyz = self.atoms.pos
+        self.extras = list(self.atoms.params.keys())
         for k in self.extras:
-            setattr(self, k, self.atoms.properties[k])
+            setattr(self, k, self.atoms.params[k])
         self.types = None
-        self.box = None
 
-        
     def __eq__(self, other):
         return self.atoms == other.atoms
     def __len__(self):
@@ -66,17 +63,12 @@ class XYZParser(object):
         selectargs.update(kwargs)
         
         ids = self.gbids(**selectargs)
-
+        
         if extras:
-            x = {k: getattr(self, k)[ids+1] for k in self.extras}
+            x = {k: getattr(self, k)[ids] for k in self.extras}
         else:
             x = None
-        if self.types is not None:
-            types = self.types[ids]
-        else:
-            types = None
-
-        result = GrainBoundary(self.xyz[ids,:], types,
+        result = GrainBoundary(self.xyz[ids,:], self.types[ids],
                                self.box, Z, extras=x,
                                selectargs=selectargs, **soapargs)
         return result
@@ -89,7 +81,6 @@ class XYZParser(object):
             method (str): one of ['median', 'cna', 'cna_z'].
             pattr (str): name of an attribute in :attr:`extras` to pass as the
               selection parameter of the routine.
-            cna_val (int): type id of the *perfect crystal*.
             kwargs (dict): additional arguments passed to the atom selection
               function. For `median`, see :func:`gblearn.selection.median` for the
               arguments.
