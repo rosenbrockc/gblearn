@@ -25,8 +25,7 @@ class XYZParser(object):
         for k in self.extras:
             setattr(self, k, self.atoms.properties[k])
         self.types = None
-        self.box = None
-
+        self.box = self.atoms.lattice
         
     def __eq__(self, other):
         return self.atoms == other.atoms
@@ -77,7 +76,7 @@ class XYZParser(object):
             types = None
 
         result = GrainBoundary(self.xyz[ids,:], types,
-                               self.box, Z, extras=x,
+                               self.box, Z, extras=x, makelat=False,
                                selectargs=selectargs, **soapargs)
         return result
 

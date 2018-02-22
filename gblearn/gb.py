@@ -470,14 +470,15 @@ class GrainBoundary(object):
                  makelat=True, **soapargs):
         from gblearn.soap import SOAPCalculator
         from gblearn.lammps import make_lattice
-        self.xyz = xyz
+        self.xyz = xyz.copy()
         self.types = types
+
         if makelat:
             self.box = box
             self.lattice = make_lattice(box)
         else:
             self.box = None
-            self.lattice = box
+            self.lattice = box.copy()
             
         self.calculator = SOAPCalculator(**soapargs)
         self.Z = Z
@@ -493,7 +494,11 @@ class GrainBoundary(object):
         if extras is not None:
             self.extras = extras.keys()
             for k, v in extras.items():
-                setattr(self, k, v)
+                if not hasattr(self, k):
+                    setattr(self, k, v.copy())
+                else:
+                    msg.warn("Cannot set extra attribute `{}`; "
+                             "already exists.".format(k))
         else:
             self.extras = []    
         
