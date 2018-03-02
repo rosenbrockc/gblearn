@@ -5,6 +5,7 @@ from collections import OrderedDict
 from gblearn import msg
 from os import path
 from tqdm import tqdm
+from quippy.farray import FortranArray
 
 class GrainBoundaryCollection(OrderedDict):
     """Represents a collection of grain boundaries and the unique environments
@@ -392,6 +393,28 @@ class GrainBoundaryCollection(OrderedDict):
                 
    	return result
 
+    def features(self, eps):
+        """Calculates the feature descriptor for the given `eps` value and
+        places it in the store.
+
+        Args:
+            eps (float): cutoff value for deciding whether two vectors are
+              unique.
+        """
+        result = None
+        features = self.store.features
+        if eps in features:
+            result = features[eps]
+
+        if result is None:
+            U = self.U(eps)            
+            result = list(U["U"].keys())
+            features[eps] = result
+            self.store.features = features
+            self._create_feature_map(eps)
+
+        return result
+    
     def LER(self, eps):
         """Produces the LAE fingerprint for each GB in the system. The LAE
         figerprint is the percentage of the GBs local environments that belong to
@@ -427,7 +450,49 @@ class GrainBoundaryCollection(OrderedDict):
             self.store.LER = LER
             
         return result
+
+    def feature_map_file(self, eps):
+        """Returns the full path to the feature map file.
+
+        Args:
+            eps (float): `eps` value used in finding the set of unique LAEs in
+              the GB system.
+        """
+        filename = "{0:.5f}-features.dat".format(eps)
+        return path.join(self.store.features_, filename)        
     
+    def _create_feature_map(self, eps):
+        """Creates a feature map file that interoperates with the XGBoost boosters
+        dump method.
+
+        .. note:: It is important that the list of features has the *same order* as
+          the features in the matrix that the model was trained on.
+
+        Args:
+            eps (float): `eps` value used in finding the set of unique LAEs in
+              the GB system.
+        """
+        with open(self.feature_map_file(eps), 'w') as outfile:
+            i = 0
+            for feat in self.store.features[eps]:
+                outfile.write('{0}\t{1}\tq\n'.format(i, feat))
+                i = i + 1
+
+    def importance(self, eps, model):
+        """Calculates the feature importances based on the specified XGBoost
+        model.
+
+        Args:
+            eps (float): `eps` value used in finding the set of unique LAEs in
+              the GB system.
+            model: one of :class:`xgboost.XGBClassifier` or
+              :class:`xgboost.XGBRegressor`.
+        """
+        from gblearn.analysis import order_features_by_gains
+        mapfile = self.feature_map_file(eps)
+        gains = order_features_by_gains(model.booster(), mapfile)
+        return [(g[0], int(g[1])) for g in gains]
+                
 class GrainBoundary(object):
     """Represents a grain boundary that is defined by a list of atomic
     positions.
@@ -495,7 +560,11 @@ class GrainBoundary(object):
             self.extras = extras.keys()
             for k, v in extras.items():
                 if not hasattr(self, k):
-                    setattr(self, k, v.copy())
+                    target = v.copy()
+                    if isinstance(target, FortranArray):
+                        setattr(self, k, v.copy().T)
+                    else:
+                        setattr(self, k, v.copy())
                 else:
                     msg.warn("Cannot set extra attribute `{}`; "
                              "already exists.".format(k))
@@ -601,7 +670,8 @@ class GrainBoundary(object):
         self.LAEs = [(None, None) for i in range(len(self.xyz))]
         for k in self.extras:
             current = getattr(self, k)
-            setattr(self, k, np.array(current)[ids])
+            if hasattr(current, "__getitem__"):
+                setattr(self, k, np.array(current)[ids])
             
     def soap(self, cache=True):
         """Calculates the SOAP vector matrix for the atomic environments at the
