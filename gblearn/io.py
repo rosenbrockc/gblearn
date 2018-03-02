@@ -112,7 +112,7 @@ class ResultStore(object):
           folder name for specific variations of the representations.
     """
     soapstr = ["lmax", "nmax", "rcut"]
-    reps = ["P", "U", "ASR", "LER"]
+    reps = ["P", "U", "ASR", "LER", "features"]
     
     def __init__(self, gbids, root=None, restricted=True, **soapargs):
         self.root = root
@@ -290,6 +290,35 @@ class ResultStore(object):
 
         assert len(np.setdiff1d(self.gbids, saved)) == 0
 
+    @property
+    def features(self):
+        """Gets the list of unique ids that describe each set of unique
+        enviroments as a function of `eps`.
+
+        .. warning:: These value are dependent on the particular SOAP parameter
+          set. They are saved accordingly.
+
+        Returns:
+            dict: keys are values of `epsilon`, rounded to 5 decimal places;
+            values are a list of `(gbid, eid)` tuples.
+        """
+        return self._agg_get("features")
+
+    @features.setter
+    def features(self, value):
+        """Sets the value of the feature descriptors in this store. It is
+        stored according to the current SOAP parameter set.
+
+        .. warning:: If a file already exists for a particular unique
+          decomposition at a value of `eps`, it will *not* be overwritten, but
+          skipped.
+
+        Args:
+            value (dict): keys are epsilon value controlling when two LAEs are
+              similar; values are lists of `(gbid, eid)` tuples.
+        """
+        self._agg_set("features", value)
+        
     @property
     def U(self):
         """Gets the value of the unique decomposition in this store.

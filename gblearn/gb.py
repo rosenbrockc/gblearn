@@ -473,10 +473,8 @@ class GrainBoundaryCollection(OrderedDict):
               the GB system.
         """
         with open(self.feature_map_file(eps), 'w') as outfile:
-            i = 0
-            for feat in self.store.features[eps]:
-                outfile.write('{0}\t{1}\tq\n'.format(i, feat))
-                i = i + 1
+            for i, feat in enumerate(self.store.features[eps]):
+                outfile.write('{0}\t{1}-{2}\tq\n'.format(i, *feat))
 
     def importance(self, eps, model):
         """Calculates the feature importances based on the specified XGBoost
@@ -490,8 +488,16 @@ class GrainBoundaryCollection(OrderedDict):
         """
         from gblearn.analysis import order_features_by_gains
         mapfile = self.feature_map_file(eps)
-        gains = order_features_by_gains(model.booster(), mapfile)
-        return [(g[0], int(g[1])) for g in gains]
+        gains = order_features_by_gains(model.get_booster(), mapfile)
+        result = {
+            "cover": [],
+            "gain": []
+        }
+        for key, gdict in gains:
+            result["cover"].append((key, gdict["cover"]))
+            result["gain"].append((key, gdict["gain"]))
+            
+        return result
                 
 class GrainBoundary(object):
     """Represents a grain boundary that is defined by a list of atomic
