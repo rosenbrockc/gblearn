@@ -24,6 +24,7 @@ class XYZParser(object):
         self.extras = list(self.atoms.properties.keys())
         for k in self.extras:
             setattr(self, k, self.atoms.properties[k])
+
         self.types = None
         self.box = self.atoms.lattice
         
@@ -77,7 +78,8 @@ class XYZParser(object):
 
         result = GrainBoundary(self.xyz[ids,:], types,
                                self.box, Z, extras=x, makelat=False,
-                               selectargs=selectargs, **soapargs)
+                               selectargs=selectargs, params=self.atoms.params,
+                               **soapargs)
         return result
 
     def gbids(self, method="median", pattr=None, **kwargs):
