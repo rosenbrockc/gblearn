@@ -102,14 +102,24 @@ class GrainBoundaryCollection(OrderedDict):
             return np.array([values[gbid] for gbid in self])
         else:
             values = []
+            scalar = False
             for gb in self.values():
                 if hasattr(gb, name):
-                    values.append(getattr(gb, name))
+                    vi = getattr(gb, name)
+                    if isinstance(vi, FortranArray):
+                        values.append(np.array(vi.T))
+                    else:
+                        values.append(vi)
                 elif name in gb.params:
                     values.append(gb.params[name])
+                    scalar = True
                 else:
                     break
-            return np.array(values)
+
+            if scalar:
+                return np.array(values)
+            else:
+                return values
         
     def add_property(self, name, filename=None, values=None, colindex=1,
                      delimiter=None, cast=float, skip=0):
