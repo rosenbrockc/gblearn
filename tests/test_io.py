@@ -35,7 +35,7 @@ def test_soapmem(memstore):
     """Tests the memory-only store for SOAP matrices.
     """
     assert memstore.P == {}
-    
+
     Ps = {gbid: np.random.random((2,2)) for gbid in memstore.gbids}
     memstore.P = Ps
 
@@ -43,7 +43,7 @@ def test_soapmem(memstore):
     oPs = {gbid: np.random.random((2,2)) for gbid in memstore.gbids}
     oPs[9] = np.random.random((2,2))
     memstore.P = oPs
-    
+
     for gbid in memstore.gbids:
         assert np.allclose(memstore.P[gbid], Ps[gbid])
 
@@ -52,7 +52,7 @@ def test_soapmem(memstore):
     assert memstore.SOAP == (8, 8, 4.3)
     assert memstore.P == {}
     assert memstore.SOAP_str == "8_8_4.30"
-        
+
 def test_soap(store):
     """Tests the saving and restoration of random 2x2 SOAP matrices
     for each of the GBs.
@@ -82,13 +82,58 @@ def test_soap(store):
         with nstore.P[gbid] as stored:
             assert np.allclose(stored, Ps[gbid])
 
+def test_scattermem(memstore):
+    """Tests the memory-only store for Scatter matrices.
+    """
+    assert memstore.Scatter == {}
+
+    Scatters = {gbid: np.random.random((2,2)) for gbid in memstore.gbids}
+    memstore.Scatter = Scatters
+
+    #If we have the wrong number of matrices, then nothing should happen.
+    oScatters = {gbid: np.random.random((2,2)) for gbid in memstore.gbids}
+    oScatters[9] = np.random.random((2,2))
+    memstore.Scatter = oScatters
+
+    for gbid in memstore.gbids:
+        assert np.allclose(memstore.Scatter[gbid], Scatters[gbid])
+
+def test_scatter(store):
+    """Tests the saving and restoration of random 2x2 Scatter matrices
+    for each of the GBs.
+    """
+    #There shouldn't be anything before it is set.
+    with store.Scatter[store.gbids[0]] as stored:
+        assert stored is None
+
+    #First, we generate the random matrices, then we set Scater and get Scatter
+    #and make sure they match.
+    Scatters = {gbid: np.random.random((2,2)) for gbid in store.gbids}
+    store.Scatter = Scatters
+
+    #Check that the directory has the relevant files and that they
+    #don't have zero size.
+    target = path.join(store.Scatter_, store.SOAP_str)
+    assert path.isdir(target)
+    for gbid in store.gbids:
+        gbpath = path.join(target, "{}.npy".format(gbid))
+        assert path.isfile(gbpath)
+
+    #Ask for a new store so that we can load the arrays from disk and
+    #check their equality.
+    nstore = ResultStore(range(1, 8), store.root, lmax=8, nmax=8, rcut=4.3)
+    assert len(nstore.gbids) == len(nstore.Scatter)
+    for gbid in nstore.gbids:
+        with nstore.Scatter[gbid] as stored:
+            assert np.allclose(stored, Scatters[gbid])
+
 def test_LER(store):
     """Tests the parameterized, aggregated storage for U and LER.
     """
     eps = [1.1, 2.2, 3.3]
     LER = {e: np.random.random((7, 5)) for e in eps}
     store.LER = LER
-    
+
     #Ask for a new store so that we can load the arrays from disk and
     #check their equality.
     nstore = ResultStore(range(1, 8), store.root, lmax=8, nmax=8, rcut=4.3)
@@ -99,14 +144,14 @@ def test_U_mem(memstore):
     """Tests the parameterized, aggregated storage for U and LER.
     """
     assert memstore.U == {}
-    
+
     eps = [1.1, 2.2, 3.3]
     U = {e: np.random.random((7, 5)) for e in eps}
     memstore.U = U
-    
+
     for e in eps:
         assert np.allclose(memstore.U[e], U[e])
-        
+
 def test_ASR(store):
     """Tests the aggregated, single matrix storage.
     """
