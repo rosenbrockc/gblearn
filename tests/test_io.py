@@ -172,3 +172,6 @@ def test_ASR_mem(memstore):
     ASR = np.random.random((7, 6))
     memstore.ASR = ASR
     assert np.allclose(memstore.ASR, ASR)
+
+"""Build for Travis-Ci
+"""
