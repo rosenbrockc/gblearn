@@ -227,6 +227,29 @@ class GrainBoundaryCollection(OrderedDict):
         for gbid, gb in tqdm(self.items()):
             P[gbid] = gb.soap(cache=False)
 
+    def scatter(self):
+        """Calculates the Scatter vectors for each grain boundary.
+        """
+        Scatter = self.store.Scatter
+
+        if len(Scatter) == len(self):
+            #No need to recompute if the store has the result.
+            return Scatter
+
+        for gbid, gb in tqdm(self.items()):
+            Scatter[gbid] = gb.scatter(cache=False)
+
+    @property
+    def Scatter(self):
+        """Returns the computed Scatter vectors for each GB in the collection
+        """
+        result = self.store.Scatter
+        if len(result) == 0:
+            msg.info("The Scatter vectros haven't been compute yet. Use "
+                     ":meth:`scatter`.")
+
+        return result
+
     @property
     def P(self):
         """Returns the computed SOAP matrices for each GB in the collection.
@@ -601,6 +624,7 @@ class GrainBoundary(object):
             self.extras = []
 
         self.P = None
+        self.Scatter = None
         self._atoms = None
         """quippy.atoms.Atoms: representation of the atoms at the boundary that
         is interoperable with QUIP.
@@ -726,6 +750,22 @@ class GrainBoundary(object):
                 return P
 
         return self.P
+
+    def scatter(self, cache=True):
+        """Calculates the Scatter vector for the GB.
+
+        Args:
+            cache (bool): when True, cache the resulting Scatter vector.
+        """
+        if self.Scatter is None:
+            data = np.arange(10)
+
+            if cache:
+                self.Scatter = data
+            else:
+                return data
+
+        return self.Scatter
 
     @property
     def atoms(self):

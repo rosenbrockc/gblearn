@@ -79,9 +79,9 @@ class ResultStore(object):
 
     .. note:: The result store creates separate sub-folders `P_` for the full
       SOAP matrices of each GB; `U_` for the unique decompositions at different
-      epsilon values; `ASR_` for the ASR representation; and `LER_` for the LER
+      epsilon values; `ASR_` for the ASR representation; `LER_` for the LER
       representations (tied to particular epsilon values and unique
-      decompositions).
+      decompositions); `Scatter_` for the Scatter vectors of each GB.
 
     .. note:: If any of the results (such as :attr:`P`, :attr:`U`, :attr:`ASR`
       or :attr:`LER`) are not saved in the store, `None` will be returned.
