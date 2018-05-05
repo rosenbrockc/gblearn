@@ -112,7 +112,7 @@ class ResultStore(object):
           folder name for specific variations of the representations.
     """
     soapstr = ["lmax", "nmax", "rcut"]
-    reps = ["P", "U", "ASR", "LER", "Scatter", "features"]
+    reps = ["P", "U", "ASR", "LER", "features", "Scatter"]
 
     def __init__(self, gbids, root=None, restricted=True, **soapargs):
         self.root = root
@@ -239,7 +239,7 @@ class ResultStore(object):
             dict: keys are 'gbid', values are the Scatter representation for that
             particular GB
         """
-        return self._np.get("Scatter")
+        return self._np_get("Scatter")
 
     @Scatter.setter
     def Scatter(self, value):

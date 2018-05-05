@@ -1,0 +1,6 @@
+To run unit tests for gblearn in docker:
+	1. run "docker build -t gblearn-test ." in terminal
+		*Note: The build requires a 2GB dependency
+	2. run "docker run --name 'gbtest' --rm -i -t gblearn-test bash"
+		*Note: 'gbtest' can be named whatever the user desires.
+	3. now in the docker terminal, run "coverage run --source=gblearn -m pytest"

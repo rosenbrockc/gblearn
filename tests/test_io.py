@@ -106,7 +106,7 @@ def test_scatter(store):
     with store.Scatter[store.gbids[0]] as stored:
         assert stored is None
 
-    #First, we generate the random matrices, then we set Scater and get Scatter
+    #First, we generate the random matrices, then we set Scatter and get Scatter
     #and make sure they match.
     Scatters = {gbid: np.random.random((2,2)) for gbid in store.gbids}
     store.Scatter = Scatters
@@ -172,6 +172,3 @@ def test_ASR_mem(memstore):
     ASR = np.random.random((7, 6))
     memstore.ASR = ASR
     assert np.allclose(memstore.ASR, ASR)
-
-"""Build for Travis-Ci
-"""
