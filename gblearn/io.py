@@ -83,8 +83,8 @@ class ResultStore(object):
       representations (tied to particular epsilon values and unique
       decompositions); `Scatter_` for the Scatter vectors of each GB.
 
-    .. note:: If any of the results (such as :attr:`P`, :attr:`U`, :attr:`ASR`
-      or :attr:`LER`) are not saved in the store, `None` will be returned.
+    .. note:: If any of the results (such as :attr:`P`, :attr:`U`, :attr:`ASR`,
+      :attr:`LER`, or :attr:`Scatter`) are not saved in the store, `None` will be returned.
 
     .. note:: If `root=None` then the results will only be cached in memory and
       *not* to disk.

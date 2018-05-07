@@ -245,7 +245,7 @@ class GrainBoundaryCollection(OrderedDict):
         """
         result = self.store.Scatter
         if len(result) == 0:
-            msg.info("The Scatter vectros haven't been compute yet. Use "
+            msg.info("The Scatter vectors haven't been computed yet. Use "
                      ":meth:`scatter`.")
 
         return result
@@ -758,12 +758,12 @@ class GrainBoundary(object):
             cache (bool): when True, cache the resulting Scatter vector.
         """
         if self.Scatter is None:
-            data = np.arange(10)
+            Scatter = np.arange(10)
 
             if cache:
-                self.Scatter = data
+                self.Scatter = Scatter
             else:
-                return data
+                return Scatter
 
         return self.Scatter
 
