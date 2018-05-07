@@ -1,9 +1,0 @@
-tqdm
-numpy
-termcolor
-pytest
-coverage
-coveralls
-matplotlib
-argparse
-scipy
