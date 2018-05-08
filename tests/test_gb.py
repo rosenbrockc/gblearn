@@ -98,7 +98,7 @@ def test_gbids(GBCol):
               rcut=3.25, lmax=12, nmax=12, sigma=0.5)
     model = (["ni.p{}.out".format(i) for i in range(453, 460)] +
              ["pissnnl.{}.npy".format(i) for i in range(453, 460)] +
-             ["README.md"])
+             ["README.md", "energy.txt"])
     assert list(sorted(col.gbfiles.keys())) == sorted(model)
 
 def test_gbsoap(GBCol):
