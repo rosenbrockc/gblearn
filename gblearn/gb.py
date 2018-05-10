@@ -793,7 +793,7 @@ class GrainBoundary(object):
         from os import path
         filepath = path.abspath(path.expanduser(filename))
 
-        if vacuum:
+        if vacuum:# pragma: no cover
             #8
             #Lattice="5.44 0.0 0.0 0.0 5.44 0.0 0.0 0.0 5.44" Properties=species:S:1:pos:R:3 Time=0.0
             #Si        0.00000000      0.00000000      0.00000000
