@@ -1,6 +1,0 @@
-{
-  "tests/test_decomposition.py::test_RDF": true, 
-  "tests/test_decomposition.py::test_collection": true, 
-  "tests/test_decomposition.py::test_df": true, 
-  "tests/test_decomposition.py::test_vector_saveload": true
-}
