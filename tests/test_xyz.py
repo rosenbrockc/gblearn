@@ -24,12 +24,21 @@ def test_gbids(XYZD):
     loadd = np.load("tests/xyz/00110391110_Dud.npy")
     assert np.allclose(np.sort(xyzd), np.sort(loadd))
 
-def test_gb(XYZD):
-    """Tests that a GrainBoundary instance made through xyz.gb is made as expected.
+@pytest.fixture
+def GBXYZ(XYZD):
+    """Returns a GrainBoundary object made through xyz.gb
     """
+    result = XYZD.gb(Z=26, pattr="cna", method="cna_z", cna_val=3)
+    return result
 
-    GBXYZ = XYZD.gb(Z=26, pattr="cna", method="cna_z", cna_val=3)
-
+def test_gb(GBXYZ):
+    """Tests that the GrainBoundary instance made through xyz.gb is made as expected.
     assert GBXYZ.xyz.shape == (7080, 3)
+    """
     assert GBXYZ.extras == ['force', 'map_shift', 'pos', 'csp', 'cna', 'n_neighb', 'Z', 'species']
     assert len(GBXYZ.cna) == 7080
+
+def test_xzysoap(GBXYZ):
+    """Tests SOAP calculation based on a GB made through xyz.gb
+    """
+    GBXYZ.soap()

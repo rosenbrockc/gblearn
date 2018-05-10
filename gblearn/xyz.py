@@ -27,12 +27,12 @@ class XYZParser(object):
 
         self.types = None
         self.box = self.atoms.lattice
-        
+
     def __eq__(self, other):
         return self.atoms == other.atoms
     def __len__(self):
         return self.atoms.n
-    
+
     def gb(self, Z=None, method="median", pattr="c_csd", extras=True, soapargs={},
            **kwargs):
         """Returns the grain boundary for this XYZ file.
@@ -49,29 +49,29 @@ class XYZParser(object):
             kwargs (dict): additional arguments passed to the atom selection
               function. For `median`, see :func:`gblearn.selection.median` for the
               arguments. For `cna*` see :func:`gblearn.selection.cna_max`.
-        
+
         Returns:
             gblearn.gb.GrainBoundary: instance with only those atoms that appear
               to be at the boundary.
         """
-        if Z is None:
+        if Z is None:# pragma: no cover
             raise ValueError("`Z` is a required parameter for constructing a "
                              ":class:`GrainBoundary` instance.")
-        
+
         from gblearn.gb import GrainBoundary
         selectargs = {
             "method": method,
             "pattr": pattr
         }
         selectargs.update(kwargs)
-        
+
         ids = self.gbids(**selectargs)
 
         if extras:
             x = {k: getattr(self, k)[ids+1] for k in self.extras}
-        else:
+        else:# pragma: no cover
             x = None
-        if self.types is not None:
+        if self.types is not None:# pragma: no cover
             types = self.types[ids]
         else:
             types = None
@@ -113,7 +113,7 @@ class XYZParser(object):
         methmap = {
             "median": sel.median,
             "cna": partial(sel.cna_max, coord=0),
-	    "cna_z": partial(sel.cna_max, coord=2)
+            "cna_z": partial(sel.cna_max, coord=2)
             }
         if method in methmap:
             extra = getattr(self, pattr) if pattr is not None else None

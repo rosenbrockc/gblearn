@@ -148,12 +148,12 @@ class GrainBoundaryCollection(OrderedDict):
         iskip = 0
         with open(filename) as f:
             for line in f:
-                if iskip < skip:
+                if iskip < skip:# pragma: no cover
                     continue
 
                 if delimiter is None:
                     rvals = line.split()
-                else:
+                else:# pragma: no cover
                     rvals = line.split(delimiter)
 
                 gbid = rvals[0]
@@ -339,16 +339,16 @@ class GrainBoundaryCollection(OrderedDict):
             raise ValueError("Cannot uniquify LAEs without a seed LAE.")
 
         U = OrderedDict()
-	U[('0', 0)] = self.seed
+        U[('0', 0)] = self.seed
 
-	for gbid in tqdm(self.gbfiles):
+        for gbid in tqdm(self.gbfiles):
             with self.P[gbid] as NP:
                 self._uniquify(NP, gbid, U, eps)
 
         #Now that we have the full list of unique environments, go through a
         #second time and classify every vector in each GB.
         used = {k: False for k in U}
-	for gbid in tqdm(self.gbfiles):
+        for gbid in tqdm(self.gbfiles):
             with self.P[gbid] as NP:
                 LAEs = self._classify(NP, gbid, U, eps, used)
             	result["GBs"][gbid] = LAEs
@@ -436,27 +436,27 @@ class GrainBoundaryCollection(OrderedDict):
 
    	return result
 
-    def features(self, eps):
-        """Calculates the feature descriptor for the given `eps` value and
-        places it in the store.
+    #def features(self, eps):
+        #"""Calculates the feature descriptor for the given `eps` value and
+        #places it in the store.
 
-        Args:
-            eps (float): cutoff value for deciding whether two vectors are
-              unique.
-        """
-        result = None
-        features = self.store.features
-        if eps in features:
-            result = features[eps]
+        #Args:
+            #eps (float): cutoff value for deciding whether two vectors are
+              #unique.
+        #"""
+        #result = None
+        #features = self.store.features
+        #if eps in features:
+            #result = features[eps]
 
-        if result is None:
-            U = self.U(eps)
-            result = list(U["U"].keys())
-            features[eps] = result
-            self.store.features = features
-            self._create_feature_map(eps)
+        #if result is None:
+            #U = self.U(eps)
+            #result = list(U["U"].keys())
+            #features[eps] = result
+            #self.store.features = features
+            #self._create_feature_map(eps)
 
-        return result
+        #return result
 
     def LER(self, eps):
         """Produces the LAE fingerprint for each GB in the system. The LAE
@@ -494,53 +494,53 @@ class GrainBoundaryCollection(OrderedDict):
 
         return result
 
-    def feature_map_file(self, eps):
-        """Returns the full path to the feature map file.
+    #def feature_map_file(self, eps):
+        #"""Returns the full path to the feature map file.
 
-        Args:
-            eps (float): `eps` value used in finding the set of unique LAEs in
-              the GB system.
-        """
-        filename = "{0:.5f}-features.dat".format(eps)
-        return path.join(self.store.features_, filename)
+        #Args:
+            #eps (float): `eps` value used in finding the set of unique LAEs in
+              #the GB system.
+        #"""
+        #filename = "{0:.5f}-features.dat".format(eps)
+        #return path.join(self.store.features_, filename)
 
-    def _create_feature_map(self, eps):
-        """Creates a feature map file that interoperates with the XGBoost boosters
-        dump method.
+    #def _create_feature_map(self, eps):
+        #"""Creates a feature map file that interoperates with the XGBoost boosters
+        #dump method.
 
-        .. note:: It is important that the list of features has the *same order* as
-          the features in the matrix that the model was trained on.
+        #.. note:: It is important that the list of features has the *same order* as
+          #the features in the matrix that the model was trained on.
 
-        Args:
-            eps (float): `eps` value used in finding the set of unique LAEs in
-              the GB system.
-        """
-        with open(self.feature_map_file(eps), 'w') as outfile:
-            for i, feat in enumerate(self.store.features[eps]):
-                outfile.write('{0}\t{1}-{2}\tq\n'.format(i, *feat))
+        #Args:
+            #eps (float): `eps` value used in finding the set of unique LAEs in
+              #the GB system.
+        #"""
+        #with open(self.feature_map_file(eps), 'w') as outfile:
+            #for i, feat in enumerate(self.store.features[eps]):
+                #outfile.write('{0}\t{1}-{2}\tq\n'.format(i, *feat))
 
-    def importance(self, eps, model):
-        """Calculates the feature importances based on the specified XGBoost
-        model.
+    #def importance(self, eps, model):
+        #"""Calculates the feature importances based on the specified XGBoost
+        #model.
 
-        Args:
-            eps (float): `eps` value used in finding the set of unique LAEs in
-              the GB system.
-            model: one of :class:`xgboost.XGBClassifier` or
-              :class:`xgboost.XGBRegressor`.
-        """
-        from gblearn.analysis import order_features_by_gains
-        mapfile = self.feature_map_file(eps)
-        gains = order_features_by_gains(model.get_booster(), mapfile)
-        result = {
-            "cover": [],
-            "gain": []
-        }
-        for key, gdict in gains:
-            result["cover"].append((key, gdict["cover"]))
-            result["gain"].append((key, gdict["gain"]))
+        #Args:
+            #eps (float): `eps` value used in finding the set of unique LAEs in
+              #the GB system.
+            #model: one of :class:`xgboost.XGBClassifier` or
+              #:class:`xgboost.XGBRegressor`.
+        #"""
+        #from gblearn.analysis import order_features_by_gains
+        #mapfile = self.feature_map_file(eps)
+        #gains = order_features_by_gains(model.get_booster(), mapfile)
+        #result = {
+            #"cover": [],
+            #"gain": []
+        #}
+        #for key, gdict in gains:
+            #result["cover"].append((key, gdict["cover"]))
+            #result["gain"].append((key, gdict["gain"]))
 
-        return result
+        #return result
 
 class GrainBoundary(object):
     """Represents a grain boundary that is defined by a list of atomic
@@ -620,7 +620,7 @@ class GrainBoundary(object):
                 else:
                     msg.warn("Cannot set extra attribute `{}`; "
                              "already exists.".format(k))
-        else:
+        else:# pragma: no cover
             self.extras = []
 
         self.P = None
@@ -663,17 +663,6 @@ class GrainBoundary(object):
             NP = self.NP
             self._K = np.dot(NP, NP.T)
         return self._K
-
-    def load(self, attr, filepath):
-        """Loads a SOAP matrix `P` for this GB from serialized file.
-
-        Args:
-            attr (str): attribute to load from file; one of ['P', 'R'].
-            filepath (str): full path to the file to load.
-        """
-        from os import path
-        if path.isfile(filepath):
-            setattr(self, attr, np.load(filepath))
 
     @property
     def gbids(self):

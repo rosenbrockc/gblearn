@@ -118,7 +118,7 @@ def test_gbsoap(GBCol):
     assert GBCol.soap() is GBCol.P
 
 def test_gbscatter(GBCol):
-    """Test calculation of Scatter vectors.
+    """Tests calculation of Scatter vectors.
     """
     assert len(GBCol.Scatter) == 0
 
@@ -130,6 +130,18 @@ def test_gbscatter(GBCol):
 
     #Make sure it doesn't recompute if they're all there.
     assert GBCol.scatter() is GBCol.Scatter
+
+def test_gbscattercache(GB9):
+    """Tests caching of Scatter vector for a single GB.
+    """
+    assert GB9.Scatter == None
+
+    GB9.scatter()
+    model = np.arange(10)
+    assert np.allclose(GB9.Scatter, model)
+
+    #Make sure it doesen't recompute if the value is already cached
+    assert GB9.scatter() is GB9.Scatter
 
 def test_ASR(GBCol):
     """Tests construction of ASR.
@@ -204,3 +216,6 @@ def test_LER(GBCol):
 
     model = np.load(path.join(reporoot, "tests", "unique", "LER.pkl"))
     assert np.allclose(LER, model)
+
+    #Make sure it doesen't recompute if they are already there
+    assert GBCol.LER(eps) is GBCol.store.LER[eps]

@@ -16,6 +16,7 @@
   "tests/test_gb.py::test_gbids", 
   "tests/test_gb.py::test_gbsoap", 
   "tests/test_gb.py::test_gbscatter", 
+  "tests/test_gb.py::test_gbscattercache", 
   "tests/test_gb.py::test_ASR", 
   "tests/test_gb.py::test_uniquify", 
   "tests/test_gb.py::test_LER", 
@@ -36,5 +37,6 @@
   "tests/test_selection.py::test_median", 
   "tests/test_xyz.py::test_instattr", 
   "tests/test_xyz.py::test_gbids", 
-  "tests/test_xyz.py::test_gb"
+  "tests/test_xyz.py::test_gb", 
+  "tests/test_xyz.py::test_xzysoap"
 ]
