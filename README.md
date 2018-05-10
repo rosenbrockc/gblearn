@@ -36,7 +36,17 @@ folder.
    olmsted = GBC("olmsted", "/dbs/olmsted", "/gbs/olmsted",
 		 r"ni.p(?P<gbid>\d+).out",
                  rcut=3.25, lmax=12, nmax=12, sigma=0.5)
-   olmsted.soap()
+
+   # We explicitly call :meth:`load` to parse the GB files. Then, construct
+   # the SOAP representation for each GB.
+   olmsted.load()
+   
+   # The SOAP representation includes padding around the boundary atoms, so
+   # that each atom in the GB has a full `rcut` of atoms around it. Remove
+   # the atoms that don't have full environments.
+   olmsted.soap()   
+
+   #Now, we can finally construct the LER.
    olmsted.LER(0.0025)
 ```
 
