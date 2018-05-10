@@ -214,7 +214,7 @@ class GrainBoundaryCollection(OrderedDict):
             gb = t.gb(**kwargs)
             self[gbid] = gb
 
-    def trim():
+    def trim(self):
         """Removes the atoms from each grain boundary that were included as
         padding for the SOAP vectors.
         """
