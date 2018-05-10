@@ -20,12 +20,12 @@ def make_lattice(box):
 	# vector can be passed to the ase.Atoms object as a definition for the
 	# triclinic box (note that the quippy.Atoms class inherits from
 	# ase.Atoms) Make sure that you note that the data is provided:
-	# 
+	#
 	# ITEM: BOX BOUNDS xy xz yz ....
 	# xlo_bound xhi_bound xy
 	# ylo_bound yhi_bound xz
 	# zlo_bound zhi_bound yz
-	# 
+	#
 	# whereas we need xlo, xhi, etc. not xlo_bound, xhi_bound, etc.
 	xlo = box[0][0] - min(0.0, box[0][2], box[1][2], box[0][2] + box[1][2])
 	xhi = box[0][1] - max(0.0, box[0][2], box[1][2], box[0][2] + box[1][2])
@@ -41,7 +41,7 @@ def make_lattice(box):
 	beta = np.arccos(box[1][2] / c)
 	gamma = np.arccos(box[0][2] / b)
 	return make_lattice(a, b, c, alpha, beta, gamma)
-    
+
     elif box.shape == (3, 2):
 	return make_lattice(box[0][1] - box[0][0],
                             box[1][1] - box[1][0],
@@ -86,7 +86,7 @@ class Dump(object):
         if not isinstance(other, Dump):
             return False
         return all(a == b for a, b in zip(self, other))
-    
+
     def dump(self, filename, mode='w', rebox=False):
         """Dumps the specified structure to file in the LAMMPS format.
 
@@ -99,10 +99,10 @@ class Dump(object):
         from os import path
         filepath = path.abspath(path.expanduser(filename))
         if mode == 'w':
-            open(filepath, 'w').close()            
+            open(filepath, 'w').close()
         for t, ts in self:
             ts.dump(filename, rebox=rebox)
-    
+
 class Timestep(object):
     """Represents a single time step in a LAMMPS dump file.
 
@@ -131,7 +131,7 @@ class Timestep(object):
     def __init__(self, filepath, index=0, openf=None, stepfilter=None):
         self.filepath = filepath
         self.index = index
-        
+
         raw = self._read(openf, stepfilter)
         #We should at least have time, type, id, xyz, box, periodic; otherwise
         #this is an incomplete dump file.
@@ -192,33 +192,33 @@ class Timestep(object):
             kwargs (dict): additional arguments passed to the atom selection
               function. For `median`, see :func:`gblearn.selection.median` for the
               arguments. For `cna*` see :func:`gblearn.selection.cna_max`.
-        
+
         Returns:
             gblearn.gb.GrainBoundary: instance with only those atoms that appear
               to be at the boundary.
         """
-        if Z is None:
+        if Z is None:# pragma: no cover
             raise ValueError("`Z` is a required parameter for constructing a "
                              ":class:`GrainBoundary` instance.")
-        
+
         from gblearn.gb import GrainBoundary
         selectargs = {
             "method": method,
             "pattr": pattr
         }
         selectargs.update(kwargs)
-        
+
         ids = self.gbids(**selectargs)
-        
+
         if extras:
             x = {k: getattr(self, k)[ids] for k in self.extras}
-        else:
+        else:# pragma: no cover
             x = None
         result = GrainBoundary(self.xyz[ids,:], self.types[ids],
                                self.box, Z, extras=x,
                                selectargs=selectargs, **soapargs)
         return result
-        
+
     def gbids(self, method="median", pattr=None, **kwargs):
         """Returns the *indices* of the atoms that lie at the grain
         boundary.
@@ -254,7 +254,7 @@ class Timestep(object):
         if method in methmap:
             extra = getattr(self, pattr) if pattr is not None else None
             return methmap[method](self.xyz, extra, types=self.types, **kwargs)
-    
+
     def dump(self, filename, mode='a', rebox=False):
         """Dumps the specified structure to file in the LAMMPS format.
 
@@ -277,7 +277,7 @@ class Timestep(object):
                 minmax = [extent(self.xyz, i) for i in range(3)]
             else:
                 minmax = self.box
-                
+
             for i in range(len(minmax)):
                 f.write("{0:.4f} {1:.4f}\n".format(*minmax[i]))
 
@@ -303,7 +303,7 @@ class Timestep(object):
                 x, y, z = xyz
                 xvals = [getattr(self, xname)[iatom] for xname in self.extras]
                 f.write(atomfmt.format(sid, atype, x, y, z, *xvals))
-    
+
     def _read(self, openf=None, stepfilter=None):
         """Reads the defining items from the dump file for the timestep
         configured in this object.
@@ -336,8 +336,8 @@ class Timestep(object):
             line = f.readline()
             if line == '':
                 continue
-            
-            if itemstack is not None and len(itemstack) > 0:                    
+
+            if itemstack is not None and len(itemstack) > 0:
                 cast = itemstack.pop()
                 raw = line.split()
                 values = [t(r) for t, r in zip(cast, raw)]
@@ -360,7 +360,7 @@ class Timestep(object):
                         self.index = values
                     else:
                         timeskip = False
-                
+
                 if len(itemstack) == 0 and current not in result:
                     result[current] = values
                 else:
@@ -375,7 +375,7 @@ class Timestep(object):
                         f.seek(lastpos)
                     break
                 else:
-                    #E.g. line: 1 4 -65.9625 1.54915 1.46824 5 30.976 
+                    #E.g. line: 1 4 -65.9625 1.54915 1.46824 5 30.976
                     vals = line.split()
                     sid, atype = tuple(map(int, vals[0:2]))
                     result["type"].append(atype)
@@ -386,7 +386,7 @@ class Timestep(object):
                         for ikey, v in enumerate(vals[5:]):
                             result[xkeys[ikey]].append(eval(v))
                     continue # pragma: no cover
-                
+
             if "ITEM: TIMESTEP" in line:
                 if laststep:
                     f.seek(lastpos)
@@ -404,7 +404,7 @@ class Timestep(object):
                         result["periodic"] = period[1].strip().split()
                     else:
                         result["periodic"] = ("ss", "ss" ,"ss")
-                    
+
 		    # Changes by JPRIEDS to accommodate triclinic boxes
 		    # Written 170719
 		    if len(result["periodic"]) == 6:
@@ -414,7 +414,7 @@ class Timestep(object):
 		    elif len(result["periodic"]) == 3:
 			itemstack.extend([(float, float)]*3)
 			current = "box"
-		    else:
+		    else:# pragma: no cover
                         emsg = "Could not classify periodic bounds: {}"
                         raise ValueError(emsg.format(result["periodic"]))
                 elif "ITEM: ATOMS" in line:
@@ -423,7 +423,7 @@ class Timestep(object):
                     result["type"] = []
                     result["id"] = []
                     result["xyz"] = []
-                    
+
                     #The first two headings in the line have "ITEM: ATOMS", the
                     #rest are usuall id, type, x, y, z, rest...
                     headings = line.split()
@@ -435,9 +435,9 @@ class Timestep(object):
                             key = "atom:{}".format(xhead)
                             result[key] = []
                             xkeys.append(key)
-            
+
         if openf is None:
             #Close the file since we opened it.
             f.close()
-            
+
         return result

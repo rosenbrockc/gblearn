@@ -31,7 +31,8 @@ setup(name='gblearn',
           "argparse",
           "termcolor",
           "numpy",
-          "matplotlib"
+          "matplotlib",
+          "tqdm"
       ],
       packages=['gblearn'],
       scripts=[],

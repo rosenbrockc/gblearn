@@ -8,7 +8,7 @@ epsilon = 5e-5
 """
 def pissnnl(pissnnl, nspecies, vcutoff, nmax=12, lmax=12):
     """Returns the geometric information for any entries of a pissnnl
-    vector higher than the specified cutoff. 
+    vector higher than the specified cutoff.
 
     Args:
         pissnnl (numpy.ndarray): vector to examine.
@@ -30,7 +30,7 @@ def pissnnl(pissnnl, nspecies, vcutoff, nmax=12, lmax=12):
         for a in range(1, nmax+1):
             rs_index[:,count] = [a, i]
             count += 1
-            
+
     ipow = 0
     skip = 0
     result = []
@@ -55,7 +55,7 @@ def pissnnl(pissnnl, nspecies, vcutoff, nmax=12, lmax=12):
 
     dmsg = "Considered {} entries in P vector (size={})."
     msg.info(dmsg.format(ipow, len(pissnnl)), 2)
-    
+
     from operator import itemgetter
     return sorted(result, key=itemgetter(1), reverse=True)
 
@@ -82,7 +82,7 @@ def fcut(r, rcut, trans_width):
             return 0.5*(np.cos(np.pi*(r-rcut+trans_width)/trans_width) + 1)
         else:
             return 1.0
-        
+
 class SOAPDecomposer(object):
     """Implements decompsition of vectors in the SOAP space allowing
     for differing `lmax` and `nmax` values in a single session. Uses
@@ -136,13 +136,13 @@ class SOAPDecomposer(object):
         self.alpha = 0.5/self.sigma**2
         self.rb = self._radial_basis()
         self.partitions = {}
-        
+
         #All of these next dictionaries are used only when caching is enabled to
         #speed up the calculation. It speeds things up by about 4 or 5 times.
         self.fcrs = {}
         self.rbexp = [np.exp(-self.alpha*(self.rb[n-1]**2))
                       for n in range(1, nmax+1)]
-        self.rbsph = {}        
+        self.rbsph = {}
         self.cRs = {}
         self.aRs = {}
         self.transformbasis = None
@@ -159,7 +159,7 @@ class SOAPDecomposer(object):
             "sigma": self.sigma,
             "trans_width": self.trans_width
             }
-        
+
     def _init_numeric(self):
         """Initializes the linear algebra matrices for the radial basis so that
         the coefficients can be solved using :meth:`cnl`.
@@ -171,17 +171,17 @@ class SOAPDecomposer(object):
         #all over in the overbasis calculation below.
         alpha = self.alpha
         rb = self.rb
-        
+
         for i in range(self.nmax):
             for j in range(self.nmax):
                 covbasis[j,i] = np.exp(-alpha * (rb[i] - rb[j])**2)
-                overbasis[j,i] = (np.exp(-alpha*(rb[i]**2+rb[j]**2))*np.sqrt(2.)* 
-                                  alpha**1.5*(rb[i] + rb[j]) + 
+                overbasis[j,i] = (np.exp(-alpha*(rb[i]**2+rb[j]**2))*np.sqrt(2.)*
+                                  alpha**1.5*(rb[i] + rb[j]) +
                                   alpha*np.exp(-0.5*alpha*(rb[i] - rb[j])**2)*
                                   np.sqrt(np.pi)*
                                   (1. + alpha*(rb[i] + rb[j])**2)*
                                   (1.0 + erf(np.sqrt(alpha/2.0)*(rb[i]+rb[j]))))
-                
+
         overbasis /= np.sqrt(128. * alpha**5)
 
         from numpy.linalg import cholesky
@@ -193,7 +193,7 @@ class SOAPDecomposer(object):
 
         from numpy.linalg import solve
         self.transformbasis = solve(covbasis, choloverlap)
-        
+
     def _radial_basis(self):
         """Calculates the radial basis using the initialization
         parameters passed to the class.
@@ -221,7 +221,7 @@ class SOAPDecomposer(object):
         #Get local references to these variables so that we don't need `self`
         #all over in the overbasis calculation below.
         alpha = self.alpha
-        rb = self.rb        
+        rb = self.rb
         for n in range(1, self.nmax+1):
             argbess = 2*alpha*rb[n-1]*rij
             ep = np.exp(-alpha*(rij + rb[n-1])**2)
@@ -247,7 +247,7 @@ class SOAPDecomposer(object):
                 radial_fun[l,n-1] = msb_fi_ki_l #* rb[n-1]
         fc = fcut(rij, self.rcut, self.trans_width)
         return np.dot(radial_fun, self.transformbasis)*fc
-    
+
     def cnl(self, n, l, r, cnum=False, fast=True):
         """Returns the coefficient of the radial basis function
         :math:`g_n(r)`.
@@ -268,12 +268,12 @@ class SOAPDecomposer(object):
         if cnum:
             if self.transformbasis is None:
                 self._init_numeric()
-                
+
             if r not in self.cRs:
                 self.cRs[r] = self._c_numeric(r)
             return self.cRs[r][l, n-1]
         else:
-            from scipy.special import sph_in
+            from scipy.special import spherical_in as sph_in
             if fast:
                 if r not in self.fcrs:
                     self.fcrs[r] = 4*np.pi*fcut(r, self.rcut, self.trans_width)
@@ -285,7 +285,7 @@ class SOAPDecomposer(object):
                                            self.rbexp[n-1] *
                                            np.exp(-self.alpha*(r**2)) *
                                            self.rbsph[(n, l, r)])
-            
+
                 return self.aRs[(n, l, r)]
             else: #pragma: no cover
                 #There is no real sense in not using the cached method since the
@@ -297,9 +297,9 @@ class SOAPDecomposer(object):
     def apnl(self, dp, rx, cnum=False, fast=True):
         """Returns the analytically/numerically derived coefficient for the
         specified, decomposed pissnnl.
-        
+
         Args:
-            dp (tuple): (`int` index in `P`, `float` cnlm, 
+            dp (tuple): (`int` index in `P`, `float` cnlm,
               (`int` ni, `int` si), (`int` nj, `int` sj), `int` l). These tuples
               are calculated in bulk for a `pissnnl` vector using
               :func:`gblearn.decomposition.pissnnl`.
@@ -321,7 +321,7 @@ class SOAPDecomposer(object):
         decomposed `P` vector.
 
         Args:
-            dp (tuple): (`int` index in `P`, `float` cnlm, 
+            dp (tuple): (`int` index in `P`, `float` cnlm,
               (`int` ni, `int` si), (`int` nj, `int` sj), `int` l). These tuples
               are calculated in bulk for a `P` vector using
               :func:`gblearn.decomposition.pissnnl`.
@@ -338,7 +338,7 @@ class SOAPDecomposer(object):
         rebuilding the radial and angular distribution functions.
         """
         return np.sign(p)*np.sqrt(np.sqrt(np.abs(p)))
-    
+
     def _ang_part(self, dP):
         """Returns the angular grouping by `l` for the specified P decomposition.
         """
@@ -352,7 +352,7 @@ class SOAPDecomposer(object):
         vector decomposition.
 
         Args:
-            dp (tuple): (`int` index in `P`, `float` cnlm, 
+            dp (tuple): (`int` index in `P`, `float` cnlm,
               (`int` ni, `int` si), (`int` nj, `int` sj), `int` l). These tuples
               are calculated in bulk for a `P` vector using
               :func:`gblearn.decomposition.pissnnl`.
@@ -371,7 +371,7 @@ class SOAPDecomposer(object):
             #together to get pissnnl.
             result += p*np.sqrt(np.absolute(Ylm*Ylm.conjugate()))
         return result
-    
+
     def decompose(self, P, vcutoff=1e-5):
         """Decomposes the specified SOAP vector into its radial and angular
         contributions using :func:`gblearn.decomposition.pissnnl`.
@@ -387,12 +387,12 @@ class SOAPDecomposer(object):
     def partition(self, lfilter, inverse=False):
         """Returns a list of indices for a `P` vector that correspond to the
         specified `l` values.
-        
+
         Args:
             lfilter (list): of `l` values to include in the resulting indices.
             inverse (bool): when True, then any `l` values *not* in `lfilter` are
               included instead of the inverse.
-        
+
         Returns:
             (numpy.ndarray): of `int` indices that have the specified `l` values.
         """
@@ -404,7 +404,7 @@ class SOAPDecomposer(object):
                 for a in range(1, self.nmax+1):
                     rs_index[:,count] = [a, i]
                     count += 1
-                    
+
             ipow = 0
             result = []
             for ia in range(1, self.nspecies*self.nmax+1):
@@ -444,7 +444,7 @@ class DF(object):
         catom (bool): when True, this DF is for the *central* atom only (i.e.,
           :math:`l=0` components only).
         x (numpy.ndarray): domain in radial/angular space on which to sample
-          the function.    
+          the function.
         decomposer (SOAPDecomposer): instance used to decompose the SOAP vector; has
           configuration information for SOAP parameters and caches for rapid
           evaluation of the basis functions.
@@ -483,7 +483,7 @@ class DF(object):
             return np.allclose(self.df, other.df)
         else:
             return False
-        
+
     @property
     def norm(self):
         """Calculates the L2 norm of the distribution function values as if they
@@ -493,7 +493,7 @@ class DF(object):
             from numpy.linalg import norm as lnorm
             self._norm = lnorm(self.df)
         return self._norm
-        
+
     def __sub__(self, other):
         """Determines the distance between two DFs using the dot product
         metric.
@@ -506,7 +506,7 @@ class DF(object):
     @staticmethod
     def from_file(filename, decomposer=None, x=None):
         """Restores a DF from file.
-        
+
         Args:
             filename (str): path to the file that was created by
               :meth:`DF.save`.
@@ -525,7 +525,7 @@ class DF(object):
     def from_dict(data, decomposer=None, x=None):
         """Restores a DF from a serialized dict (i.e., one returned by
         :meth:`serialize`).
-        
+
         Args:
             data (dict): result of calling :meth:`serialize`.
             decomposer (SOAPDecomposer): instance used to decompose the SOAP vector; has
@@ -540,7 +540,7 @@ class DF(object):
                     data["dtype"]=="R", calculate=False)
         result.df = data["df"]
         return result
-    
+
     def serialize(self, withdecomp=True, commonx=None, withdP=True):
         """Returns a serializable dictionary that represents this DF.
 
@@ -567,7 +567,7 @@ class DF(object):
         if withdecomp:
             result["decomposer"] = self.decomposer.get_params()
         return result
-    
+
     def save(self, target):
         """Saves the DF to disk.
 
@@ -578,7 +578,7 @@ class DF(object):
         data = self.serialize()
         with open(target, 'wb') as f:
             dump(data, f)
-    
+
     def same(self, other, epsilon_=None):
         """Tests whether the specifed DF is similar to this one.
 
@@ -595,7 +595,7 @@ class DF(object):
             return self-other < epsilon
         else:
             return self-other < epsilon_
-    
+
     def plot(self, ax=None, savefile=None, shells=None, opacity=1., color='b',
              title=None, xlabel=None, ylabel=None):
         """Plots the DF.
@@ -637,14 +637,14 @@ class DF(object):
                 plt.ylabel(ylabel)
 
         _plot_shells(axset, shells, np.max(self.df))
-        
+
         if savefile is not None:
             plt.savefig(savefile)
-            
+
         from gblearn.base import testmode
         if not testmode:# pragma: no cover
             plt.show()
-            
+
         return axset
 
 class DFCollection(object):
@@ -679,7 +679,7 @@ class DFCollection(object):
             self.counts = counts
         else:
             self.counts = [1 for i in range(len(self.dfs))]
-            
+
         self._unique = False
         """bool: when True, this collection has already been tested for
         uniqueness. Any subsequent additions will be tested for uniqueness
@@ -702,8 +702,8 @@ class DFCollection(object):
         if isinstance(other, DFCollection):
             return all([sdf == odf for sdf, odf in zip(self, other)])
         else:
-            return False    
-        
+            return False
+
     def __str__(self):
         title = "{0}DFCollection {1} with {2:d} items"
         label = "" if self.label is None else "({})".format(self.label)
@@ -716,7 +716,7 @@ class DFCollection(object):
         return title.format(dtype, label, len(self))
     def __repr__(self):
         return str(self)
-    
+
     def __add__(self, other):
         """Concatenate two collections together. This doesn't enforce any
         uniqueness constraints. Tags and labels are *not* updated.
@@ -746,7 +746,7 @@ class DFCollection(object):
         self.tags.update(other.tags)
         self._average = None
         return self
-    
+
     def __iter__(self):
         return iter(self.dfs)
     def __contains__(self, df):
@@ -785,13 +785,13 @@ class DFCollection(object):
         """
         if ctype not in ["RDF", "ADF"]:
             raise ValueError("'ctype' must be either 'RDF' or 'ADF'.")
-        
+
         from gblearn.base import nprocs
         if ctype == "RDF":
             x = np.linspace(0., collection.decomposer.rcut, resolution)
         else:
             x = np.linspace(0., np.pi, resolution)
-            
+
         if nprocs is not None:
             from multiprocessing import Pool
             mpool = Pool(nprocs)
@@ -803,11 +803,11 @@ class DFCollection(object):
         else:
             dfs = [getattr(v, ctype)(x) for v in collection]
         return dfs
-        
+
     @staticmethod
     def from_file(filename):
         """Restores a DFCollection from file.
-        
+
         Args:
             filename (str): path to the file that was created by
               :meth:`DF.save`.
@@ -821,7 +821,7 @@ class DFCollection(object):
     def from_dict(data):
         """Restores a DFCollection from a serialized dict (i.e., one returned by
         :meth:`serialize`).
-        
+
         Args:
             data (dict): result of calling :meth:`serialize`.
         """
@@ -843,7 +843,7 @@ class DFCollection(object):
         result.label = data["label"]
         result.tags = data["tags"]
         return result
-    
+
     def serialize(self, withdP=False):
         """Returns a serializable dictionary that represents this DFCollection.
 
@@ -856,11 +856,11 @@ class DFCollection(object):
         if len(self) > 0:
             decomposer = self.dfs[0].decomposer
             x = self.dfs[0].x
-            
+
         dfs = []
         for df in self:
             dfs.append(df.serialize(withdecomp=False, commonx=x, withdP=withdP))
-            
+
         result = {
             "dfs": dfs,
             "counts": self.counts,
@@ -871,9 +871,9 @@ class DFCollection(object):
         if decomposer is not None:
             result["decomposer"] = decomposer.get_params()
         else:# pragma: no cover
-            result["decomposer"] = {}            
+            result["decomposer"] = {}
         return result
-    
+
     def save(self, target, withdP=False):
         """Saves the DF to disk.
 
@@ -916,9 +916,9 @@ class DFCollection(object):
                     break
             else:
                 exceptions.append(si)
-                
+
         return (result, exceptions)
-    
+
     def refine(self, other, epsilon_=None):
         """Refines this DFCollection to include all DFs in `other` that are not
         already in `self`. Also reduces existing DFs in `self` to be unique.
@@ -947,7 +947,7 @@ class DFCollection(object):
         dfs._original = len(self) + len(other)
         dfs._unique = True
         return dfs
-        
+
     def histogram(self, epsilon_=None, savefile=None, **kwargs):
         """Determines how many of each kind of DF are in this collection (using
         the default comparison). Plots the histogram of unique values. This is
@@ -967,7 +967,7 @@ class DFCollection(object):
             result = self.unique(epsilon_)
         else:
             result = self
-            
+
         import matplotlib.pyplot as plt
         total = sum(result.counts)
         plt.figure()
@@ -982,8 +982,8 @@ class DFCollection(object):
 
         from gblearn.base import testmode
         if not testmode:# pragma: no cover
-            plt.show()       
-        
+            plt.show()
+
     def unique(self, epsilon_=None):
         """Returns only the unique DFs in this collection.
 
@@ -997,11 +997,11 @@ class DFCollection(object):
         """
         if self._unique:
             return self
-        
+
         if len(self) == 0:
             #Construct a new, empty collection.
             return self.__class__()
-        
+
         dfs = [self.dfs[0]]
         counts = [self.counts[0]]
         for si, df in enumerate(self[1:]):
@@ -1019,7 +1019,7 @@ class DFCollection(object):
         result._unique = True
         result._original = len(self)
         return result
-        
+
     def plot(self, ax=None, savefile=None, shells=None, color='b', title=None,
              xlabel=None, ylabel=None, withavg=False):
         """Plots the collection of DFs on the same axes. Opacity of the line is
@@ -1073,7 +1073,7 @@ class DFCollection(object):
         else:# pragma: no cover
             unit = "unknown units"
             tstr = ""
-            
+
         if ax is None:
             if title is None:
                 plt.title("{} Distribution Function of Collection".format(tstr))
@@ -1089,7 +1089,7 @@ class DFCollection(object):
                 plt.ylabel(ylabel)
 
         _plot_shells(axset, shells, maxy)
-        
+
         if savefile is not None:
             plt.savefig(savefile)
 
@@ -1097,7 +1097,7 @@ class DFCollection(object):
         if not testmode:# pragma: no cover
             plt.show()
         return axset
-    
+
     def add(self, df):
         """Add a new DF to the collection.
 
@@ -1110,7 +1110,7 @@ class DFCollection(object):
         if len(self) > 0 and self[0].dtype != df.dtype:
             emsg = "Only DFs of type {}DF can be added to this collection."
             raise TypeError(emsg.format(self[0].dtype))
-        
+
         do_add = False
         if self._unique:
             #We need to make sure that the DF is unique before adding it.
@@ -1120,7 +1120,7 @@ class DFCollection(object):
                     #throw at it...
                     break
             else:
-                do_add = True    
+                do_add = True
         else:
             if df not in self.dfs:
                 do_add = True
@@ -1129,10 +1129,10 @@ class DFCollection(object):
             self.dfs.append(df)
             self.counts.append(1)
             self._average = None
-        
+
     def remove(self, df):
         """Remove an DF from the collection.
-        
+
         Args:
             rdf (DF): instance to remove; if it isn't already in the
               collection, nothing will happen.
@@ -1158,7 +1158,7 @@ def _multiproc_execute(obj, method, args):# pragma: no cover
     #threads.
     if hasattr(obj, method):
         return getattr(obj, method)(*args)
-            
+
 class RDFCollection(DFCollection):
     """Represents a radial distribution function collection. See also the
     comments for :class:`DFCollection`.
@@ -1198,7 +1198,7 @@ class ADFCollection(DFCollection):
         #average out to give us rotational invarance.
         dfs = DFCollection.dfs_from_soap(collection, "ADF", resolution, catom)
         return ADFCollection(dfs)
-    
+
 class SOAPVector(object):
     """Wrapper for a SOAP vector that facilitates decomposition, plotting and
     analysis in the SOAP space.
@@ -1234,11 +1234,11 @@ class SOAPVector(object):
         self.P = P
         self.cP = None
         self.nP = None
-        
+
         self.decomposer = decomposer
         self.dcP = None
         self.dnP = None
-        
+
         self.rx = None
         """numpy.ndarray: cached value of the radial values that we evaluated
         the RDF at; useful if the RDF is requested repeatedly for the same `r`
@@ -1266,7 +1266,7 @@ class SOAPVector(object):
         """numpy.ndarray: cached values of the ADF for the cached
         value in :attr:`ax` with :math:`l>0`.
         """
-        
+
     def __eq__(self, other):
         """Tests equality between two SOAP vectors by comparing *only*
         their P vectors.
@@ -1309,15 +1309,15 @@ class SOAPVector(object):
                 Aok = False
         else:
             Aok = True
-            
+
         return Pok and Dok and Rok and Aok
-    
+
     @staticmethod
     def from_element(element, index=0, **kwargs):
         """Returns the SOAP vector for a pure element.
 
         Args:
-            element (str): element name. Must be one of 
+            element (str): element name. Must be one of
               ["Ni", "Cr", "Mg"].
             index (int): for multi-atom bases, which atom to represent
               in the elemental crystal.
@@ -1328,17 +1328,17 @@ class SOAPVector(object):
             rcut (float): local environment finite cutoff parameter.
             sigma (float): width parameter for the Gaussians on each atom.
             trans_width (float): distance over which the coefficients in the
-                radial functions are smoothly transitioned to zero.    
+                radial functions are smoothly transitioned to zero.
         """
         from gblearn.elements import pissnnl
         P = pissnnl(element, **kwargs)[index]
         decomposer = SOAPDecomposer(1, **kwargs)
         return SOAPVector(P, decomposer)
-        
+
     @staticmethod
     def from_file(filename, decomposer=None, rx=None, ax=None):
         """Restores a SOAP vector from file.
-        
+
         Args:
             filename (str): path to the file that was created by
               :meth:`SOAPVector.save`.
@@ -1360,7 +1360,7 @@ class SOAPVector(object):
     def from_dict(data, decomposer_=None, rx=None, ax=None):
         """Restores a SOAP vector from a serialized dict (i.e., one returned by
         :meth:`serialize`).
-        
+
         Args:
             data (dict): result of calling :meth:`serialize`.
             decomposer_ (SOAPDecomposer): if this serialization was part of a
@@ -1376,7 +1376,7 @@ class SOAPVector(object):
             decomposer = decomposer_
         else:
             decomposer = SOAPDecomposer(**data["decomposer"])
-            
+
         result = SOAPVector(data["P"], decomposer)
         result.dcP = data["dcP"]
         result.dnP = data["dnP"]
@@ -1388,7 +1388,7 @@ class SOAPVector(object):
             result.ax = ax
         else:
             result.ax = data["ax"]
-            
+
         if data["cRDF"] is not None:
             result.cRDF = DF(data["dcP"], True, result.rx, decomposer,
                              calculate=False)
@@ -1447,7 +1447,7 @@ class SOAPVector(object):
         if self.ax is not None:
             if commonax is None or self.ax is not commonax:
                 result["ax"] = self.ax
-                
+
         if self.cRDF is not None:
             result["cRDF"] = self.cRDF.df
         if self.nRDF is not None:
@@ -1458,7 +1458,7 @@ class SOAPVector(object):
             result["nADF"] = self.nADF.df
 
         return result
-    
+
     def save(self, target):
         """Saves the SOAP vector to disk so that RDF and decomposition
         operations don't have to be re-executed later.
@@ -1479,7 +1479,7 @@ class SOAPVector(object):
             x (numpy.ndarray): values in the radial or angular domain to sample
               at.
             dfname (str): name of the attribute on `self` corresponding to the
-              cached distribution function to consider before 
+              cached distribution function to consider before
               constructing a new one. *Modified* by this routine if a DF is
               constructed.
             xname (str): name of attribute on `self` corresponding to cached
@@ -1492,7 +1492,7 @@ class SOAPVector(object):
         from numpy import allclose
         cachex = getattr(self, xname)
         cacheDF = getattr(self, dfname)
-        
+
         if (cachex is not None and cachex.shape == x.shape
             and allclose(x, cachex)):
             if cacheDF is not None:
@@ -1508,7 +1508,7 @@ class SOAPVector(object):
         else:
             P = self.nP
             dP = self.dnP
-            
+
         if P is None:
             lrest = self.decomposer.partition([0], catom)
             P = self.P.copy()
@@ -1517,7 +1517,7 @@ class SOAPVector(object):
                 self.cP = P
             else:
                 self.nP = P
-            
+
         if dP is None:
             dP = self.decomposer.decompose(P)
             if catom:
@@ -1527,7 +1527,7 @@ class SOAPVector(object):
 
         setattr(self, dfname, DF(dP, catom, x, self.decomposer, xname=="rx"))
         return getattr(self, dfname)
-            
+
     def ADF(self, ax, catom=False):
         """Returns the angular distribution function for the SOAP vector.
 
@@ -1542,7 +1542,7 @@ class SOAPVector(object):
             return self._get_DF(ax, "cADF", "ax", catom=True)
         else:
             return self._get_DF(ax, "nADF", "ax", catom=False)
-            
+
     def RDF(self, rx, catom=False):
         """Returns the *total* radial distribution function for the SOAP vector.
 
@@ -1604,7 +1604,7 @@ class SOAPVectorCollection(object):
         self._adfs = {}
         """dict: keys are `int` sampling resolutions; values are *unique* ADFs
         (:class:`ADFCollection`) in this :class:`SOAPVectorCollection`.
-        """        
+        """
 
     def __eq__(self, other):
         return all([a==b for a, b in
@@ -1616,7 +1616,7 @@ class SOAPVectorCollection(object):
         return (self == other and
                 self._rdfs == other._rdfs and
                 self._adfs == other._adfs)
-    
+
     def __iter__(self):
         return iter(self.vectors)
     def __contains__(self, value):
@@ -1644,7 +1644,7 @@ class SOAPVectorCollection(object):
     @staticmethod
     def from_file(filename):
         """Restores a SOAPVectorCollection from file.
-        
+
         Args:
             filename (str): path to the file that was created by
               :meth:`SOAPVectorCollection.save`.
@@ -1658,7 +1658,7 @@ class SOAPVectorCollection(object):
     def from_dict(data):
         """Restores a SOAPVectorCollection from a serialized dict (i.e., one
         returned by :meth:`serialize`).
-        
+
         Args:
             data (dict): result of calling :meth:`serialize`.
         """
@@ -1675,7 +1675,7 @@ class SOAPVectorCollection(object):
         result._adfs = {r: ADFCollection.from_dict(d)
                         for (r, d) in data["ADFs"].items()}
         return result
-    
+
     def serialize(self, withdP=False):
         """Returns a serializable dictionary that represents this
         :class:`SOAPVectorCollection`.
@@ -1691,11 +1691,11 @@ class SOAPVectorCollection(object):
         else:
             rx = None
             ax = None
-            
+
         vecs = []
         for vec in self.vectors:
             vecs.append(vec.serialize(False, rx, withdP, ax))
-            
+
         result = {
             "decomposer": self.decomposer.get_params(),
             "vectors": vecs,
@@ -1708,7 +1708,7 @@ class SOAPVectorCollection(object):
             "ax": ax
         }
         return result
-    
+
     def save(self, target, withdP=False):
         """Saves the DF to disk.
 
@@ -1723,7 +1723,7 @@ class SOAPVectorCollection(object):
         data = self.serialize(withdP=withdP)
         with open(target, 'wb') as f:
             dump(data, f)
-        
+
     def RDFs(self, resolution=75, catom=False):
         """Returns the set of *unique* radial distribution functions for this
         collection.
@@ -1735,7 +1735,7 @@ class SOAPVectorCollection(object):
         """
         if resolution not in self._rdfs:
             self._rdfs[resolution] = RDFCollection.from_soap(self, resolution, catom)
-        return self._rdfs[resolution]  
+        return self._rdfs[resolution]
 
     def ADFs(self, resolution=100, catom=False):
         """Returns the set of *unique* angular distribution functions for this
@@ -1748,4 +1748,4 @@ class SOAPVectorCollection(object):
         """
         if resolution not in self._adfs:
             self._adfs[resolution] = ADFCollection.from_soap(self, resolution, catom)
-        return self._adfs[resolution]  
+        return self._adfs[resolution]

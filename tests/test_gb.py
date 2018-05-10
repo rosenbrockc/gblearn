@@ -5,7 +5,7 @@ import pytest
 from os import path
 import numpy as np
 from gblearn.utility import reporoot
-    
+
 @pytest.fixture
 def GBCol(tmpdir):
     from gblearn.gb import GrainBoundaryCollection as GBC
@@ -62,7 +62,7 @@ def test_gb(GB9, tmpdir):
     A = Atoms(fxyz)
     B = Atoms("tests/gb/s9.xyz")
     assert A.equivalent(B)
-    
+
 def _preload_soap(GBCol):
     """Preloads all the SOAP matrices into the GB collection to speed up
     computations.
@@ -77,7 +77,7 @@ def _preload_soap(GBCol):
     GBCol.restricted = False
     GBCol.store.restricted = False
     GBCol.store.P.restricted = False
-    
+
     for gbid, gb in GBCol.items():
         Pfile = "pissnnl.{}.npy".format(gbid)
         model = np.load(path.join(GBCol.root, Pfile))
@@ -98,15 +98,15 @@ def test_gbids(GBCol):
               rcut=3.25, lmax=12, nmax=12, sigma=0.5)
     model = (["ni.p{}.out".format(i) for i in range(453, 460)] +
              ["pissnnl.{}.npy".format(i) for i in range(453, 460)] +
-             ["README.md"])
+             ["README.md", "energy.txt"])
     assert list(sorted(col.gbfiles.keys())) == sorted(model)
 
 def test_gbsoap(GBCol):
     """Tests construction of grain boundary objects for each of dump files found
     in the testing directory.
     """
-    assert len(GBCol.P) == 0    
-        
+    assert len(GBCol.P) == 0
+
     GBCol.soap()
     for gbid in GBCol:
         with GBCol.P[gbid] as stored:
@@ -117,13 +117,39 @@ def test_gbsoap(GBCol):
     #Make sure it doesn't recompute if they're all there.
     assert GBCol.soap() is GBCol.P
 
+def test_gbscatter(GBCol):
+    """Tests calculation of Scatter vectors.
+    """
+    assert len(GBCol.Scatter) == 0
+
+    GBCol.scatter()
+    for gbid in GBCol:
+            with GBCol.Scatter[gbid] as stored:
+                model = np.arange(10)
+                assert np.allclose(stored, model)
+
+    #Make sure it doesn't recompute if they're all there.
+    assert GBCol.scatter() is GBCol.Scatter
+
+def test_gbscattercache(GB9):
+    """Tests caching of Scatter vector for a single GB.
+    """
+    assert GB9.Scatter == None
+
+    GB9.scatter()
+    model = np.arange(10)
+    assert np.allclose(GB9.Scatter, model)
+
+    #Make sure it doesen't recompute if the value is already cached
+    assert GB9.scatter() is GB9.Scatter
+
 def test_ASR(GBCol):
     """Tests construction of ASR.
     """
     #Speed up the test by pre-loading the SOAP matrices. Their construction is
     #tested separately.
     N = _preload_soap(GBCol)
-    ASR = GBCol.ASR               
+    ASR = GBCol.ASR
     assert ASR.shape == (len(GBCol), N)
 
 def test_uniquify(GBCol):
@@ -173,7 +199,7 @@ def _preload_U(GBCol, eps):
         U = load(f)
     GBCol.store.U = {eps: U}
     assert isinstance(GBCol.U(eps), dict)
-    
+
 def test_LER(GBCol):
     """Tests construction of the LER.
     """
@@ -187,6 +213,9 @@ def test_LER(GBCol):
     LER = GBCol.LER(eps)
     U = GBCol.U(eps)
     assert LER.shape == (len(GBCol), len(U["U"]))
-    
+
     model = np.load(path.join(reporoot, "tests", "unique", "LER.pkl"))
     assert np.allclose(LER, model)
+
+    #Make sure it doesen't recompute if they are already there
+    assert GBCol.LER(eps) is GBCol.store.LER[eps]

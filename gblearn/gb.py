@@ -61,7 +61,6 @@ class GrainBoundaryCollection(OrderedDict):
         super(GrainBoundaryCollection, self).__init__()
         self.name = name
         self.root = path.abspath(path.expanduser(root))
-        
         self._sortkey = sortkey
         """function: when `root` is investigated to load GBs, the file names are first
           sorted; here you can specify a custom sorting function.
@@ -69,7 +68,7 @@ class GrainBoundaryCollection(OrderedDict):
         self._reverse = reverse
         """bool: for GB file name sorting (see `sortkey`), whether to reverse
         the order.
-        """        
+        """
         self._rxgbid = None
         """_sre.SRE_Pattern: compiled regex for the gbid pattern matching
         string.
@@ -79,7 +78,7 @@ class GrainBoundaryCollection(OrderedDict):
         self.properties = {}
         self.seed = seed
         self.soapargs = soapargs
-        
+
         if rxgbid is not None:
             import re
             self._rxgbid = re.compile(rxgbid)
@@ -120,7 +119,7 @@ class GrainBoundaryCollection(OrderedDict):
                 return np.array(values)
             else:
                 return values
-        
+
     def add_property(self, name, filename=None, values=None, colindex=1,
                      delimiter=None, cast=float, skip=0):
         """Adds a property to each GB in the collection from file or an existing
@@ -149,12 +148,12 @@ class GrainBoundaryCollection(OrderedDict):
         iskip = 0
         with open(filename) as f:
             for line in f:
-                if iskip < skip:
+                if iskip < skip:# pragma: no cover
                     continue
-                
+
                 if delimiter is None:
                     rvals = line.split()
-                else:
+                else:# pragma: no cover
                     rvals = line.split(delimiter)
 
                 gbid = rvals[0]
@@ -162,7 +161,7 @@ class GrainBoundaryCollection(OrderedDict):
                 pdict[gbid] = pval
 
         self.properties[name] = pdict
-        
+
     def _find_gbs(self):
 
         """Finds all the GBs in the root directory using the regex.
@@ -209,7 +208,7 @@ class GrainBoundaryCollection(OrderedDict):
             parser = Timestep
         kwargs["soapargs"] = self.soapargs
         kwargs["padding"] = self.soapargs["rcut"]*2
-            
+
         for gbid, gbpath in tqdm(self.gbfiles.items()):
             t = parser(gbpath)
             gb = t.gb(**kwargs)
@@ -231,13 +230,39 @@ class GrainBoundaryCollection(OrderedDict):
         if len(P) == len(self):
             #No need to recompute if the store has the result.
             return P
-            
+
         for gbid, gb in tqdm(self.items()):
             P[gbid] = gb.soap(cache=False)
 
+<<<<<<< HEAD
+    def scatter(self):
+        """Calculates the Scatter vectors for each grain boundary.
+        """
+        Scatter = self.store.Scatter
+
+        if len(Scatter) == len(self):
+            #No need to recompute if the store has the result.
+            return Scatter
+
+        for gbid, gb in tqdm(self.items()):
+            Scatter[gbid] = gb.scatter(cache=False)
+
+    @property
+    def Scatter(self):
+        """Returns the computed Scatter vectors for each GB in the collection
+        """
+        result = self.store.Scatter
+        if len(result) == 0:
+            msg.info("The Scatter vectors haven't been computed yet. Use "
+                     ":meth:`scatter`.")
+
+        return result
+
+=======
         if autotrim:
             self.trim()
             
+>>>>>>> 445dc1a67d680dd48780cb541ac9445454fcd1d9
     @property
     def P(self):
         """Returns the computed SOAP matrices for each GB in the collection.
@@ -246,16 +271,16 @@ class GrainBoundaryCollection(OrderedDict):
         if len(result) == 0:
             msg.info("The SOAP matrices haven't been computed yet. Use "
                      ":meth:`soap`.")
-            
+
         return result
-            
+
     @property
     def ASR(self):
         """Returns the ASR for the GB collection.
         """
         result = self.store.ASR
         P = self.P
-        
+
         if result is None and len(P) > 0:
             soaps = []
             for gbid in P.gbids:
@@ -293,9 +318,9 @@ class GrainBoundaryCollection(OrderedDict):
             for u, elist in LAEs.items():
                 for PID, VID in elist[1:]:
                     self[gbid].LAEs[VID] = u
-                
+
         return result
-    
+
     def uniquify(self, eps):
         """Extracts all the unique LAEs in the entire GB system using the
         specified `epsilon` similarity value.
@@ -310,7 +335,7 @@ class GrainBoundaryCollection(OrderedDict):
               of `0` by this metric, so smaller is more similar.
 
         Returns:
-            dict: with keys `U` and `GBs`. The `U` key has a dictionary of 
+            dict: with keys `U` and `GBs`. The `U` key has a dictionary of
             `(PID, VID)` identifiers for the unique LAEs in the GB collection. The
             values are the corresponding SOAP vectors. `GBs` is a dictionary with
             `gbid` keys and values being a `dict` keyed by unique LAEs with values a
@@ -321,14 +346,18 @@ class GrainBoundaryCollection(OrderedDict):
             "U": None,
             "GBs": {}
         }
-        
+
         #We pre-seed the list of unique environments with perfect FCC.
         if self.seed is None:
             raise ValueError("Cannot uniquify LAEs without a seed LAE.")
-        
+
         U = OrderedDict()
         U[('0', 0)] = self.seed
+<<<<<<< HEAD
+
+=======
         
+>>>>>>> 445dc1a67d680dd48780cb541ac9445454fcd1d9
         for gbid in tqdm(self.gbfiles):
             with self.P[gbid] as NP:
                 self._uniquify(NP, gbid, U, eps)
@@ -338,15 +367,20 @@ class GrainBoundaryCollection(OrderedDict):
         used = {k: False for k in U}
         for gbid in tqdm(self.gbfiles):
             with self.P[gbid] as NP:
+<<<<<<< HEAD
+                LAEs = self._classify(NP, gbid, U, eps, used)
+            	result["GBs"][gbid] = LAEs
+=======
                 LAEs = self._classify(NP, gbid, U, eps, used)      			
                 result["GBs"][gbid] = LAEs
+>>>>>>> 445dc1a67d680dd48780cb541ac9445454fcd1d9
 
         #Now, remove any LAEs from U that didn't get used. We shouldn't really
         #have many of these.
         for k, v in used.items():
             if not v:# pragma: no cover
                 del U[k]
-                
+
         #Populate the result dict with the final unique LAEs. We want to store
         #these ordered by similarity to the seed U.
         from gblearn.soap import S
@@ -355,12 +389,12 @@ class GrainBoundaryCollection(OrderedDict):
         Us = OrderedDict(sorted(K.items(), key=itemgetter(1), reverse=True))
         result["U"] = OrderedDict([(u, U[u]) for u in Us])
         return result
-                
+
     def _uniquify(self, NP, gbid, uni, eps):
         """Runs the first unique identification pass through the collection. Calculates
         the unique SOAP vectors in the given GB relative to the current set of
         unique ones.
-        
+
         .. note:: This version was includes refactoring by Jonathan Priedemann.
 
         Args:
@@ -371,7 +405,7 @@ class GrainBoundaryCollection(OrderedDict):
               vector in that GBs descriptor matrix. Value is the actual SOAP
               vector already found to be unique for some value of `eps`.
             eps (float): cutoff value for deciding whether two vectors are unique.
-        
+
         Returns:
             dict: keys are `tuple` of (PID, VID) linked to `uni`; values are a
             list of `tuple` (PID, VID) of vectors similar to the key.
@@ -395,6 +429,16 @@ class GrainBoundaryCollection(OrderedDict):
         """
         from gblearn.soap import S
         result = {}
+<<<<<<< HEAD
+
+	for i in range(len(NP)):
+	    Pv = NP[i,:]
+	    K0 = 1.0 #Lowest similarity kernel among all unique vectors.
+	    U0 = None #Key of the environment corresponding to K0
+
+	    for u, uP in uni.items():
+		if u not in result:
+=======
         
         for i in range(len(NP)):
             Pv = NP[i,:]
@@ -403,12 +447,23 @@ class GrainBoundaryCollection(OrderedDict):
             
             for u, uP in uni.items():
                 if u not in result:
+>>>>>>> 445dc1a67d680dd48780cb541ac9445454fcd1d9
                     result[u] = [u]
                 K = S(Pv, uP)
 
                 if K < eps:
                     #These vectors are considered to be equivalent. Store the
                     #equivalency in the result.
+<<<<<<< HEAD
+        	    if K < K0:
+			K0 = K
+			U0 = u
+
+	    if K0 < eps:
+		result[U0].append((PID, i))
+		used[U0] = True
+	    else:# pragma: no cover
+=======
                     if K < K0:
                         K0 = K
                         U0 = u
@@ -417,47 +472,53 @@ class GrainBoundaryCollection(OrderedDict):
                 result[U0].append((PID, i))
                 used[U0] = True
             else:# pragma: no cover
+>>>>>>> 445dc1a67d680dd48780cb541ac9445454fcd1d9
                 #This is just a catch warning; it should never happen in
                 #practice.
                 wmsg = "There was an unclassifiable SOAP vector: {}"
                 msg.warn(wmsg.format((PID, i)))
+<<<<<<< HEAD
+
+   	return result
+=======
                 
         return result
+>>>>>>> 445dc1a67d680dd48780cb541ac9445454fcd1d9
 
-    def features(self, eps):
-        """Calculates the feature descriptor for the given `eps` value and
-        places it in the store.
+    #def features(self, eps):
+        #"""Calculates the feature descriptor for the given `eps` value and
+        #places it in the store.
 
-        Args:
-            eps (float): cutoff value for deciding whether two vectors are
-              unique.
-        """
-        result = None
-        features = self.store.features
-        if eps in features:
-            result = features[eps]
+        #Args:
+            #eps (float): cutoff value for deciding whether two vectors are
+              #unique.
+        #"""
+        #result = None
+        #features = self.store.features
+        #if eps in features:
+            #result = features[eps]
 
-        if result is None:
-            U = self.U(eps)            
-            result = list(U["U"].keys())
-            features[eps] = result
-            self.store.features = features
-            self._create_feature_map(eps)
+        #if result is None:
+            #U = self.U(eps)
+            #result = list(U["U"].keys())
+            #features[eps] = result
+            #self.store.features = features
+            #self._create_feature_map(eps)
 
-        return result
-    
+        #return result
+
     def LER(self, eps):
         """Produces the LAE fingerprint for each GB in the system. The LAE
         figerprint is the percentage of the GBs local environments that belong to
         each unique LAE type.
-        
+
         Args:
             eps (float): cutoff value for deciding whether two vectors are
               unique.
 
         Returns:
             numpy.ndarray: rows represent GBs; columns are the percentage of unique
-              local environments of each type in each GB. 
+              local environments of each type in each GB.
         """
         result = None
         LER = self.store.LER
@@ -466,7 +527,7 @@ class GrainBoundaryCollection(OrderedDict):
 
         if result is None:
             U = self.U(eps)
-        
+
             #Next, loop over each GB and count how many of each kind it has.
             result = np.zeros((len(self), len(U["U"])))
             for gbi, gbid in enumerate(self):
@@ -479,57 +540,57 @@ class GrainBoundaryCollection(OrderedDict):
 
             LER[eps] = result
             self.store.LER = LER
-            
+
         return result
 
-    def feature_map_file(self, eps):
-        """Returns the full path to the feature map file.
+    #def feature_map_file(self, eps):
+        #"""Returns the full path to the feature map file.
 
-        Args:
-            eps (float): `eps` value used in finding the set of unique LAEs in
-              the GB system.
-        """
-        filename = "{0:.5f}-features.dat".format(eps)
-        return path.join(self.store.features_, filename)        
-    
-    def _create_feature_map(self, eps):
-        """Creates a feature map file that interoperates with the XGBoost boosters
-        dump method.
+        #Args:
+            #eps (float): `eps` value used in finding the set of unique LAEs in
+              #the GB system.
+        #"""
+        #filename = "{0:.5f}-features.dat".format(eps)
+        #return path.join(self.store.features_, filename)
 
-        .. note:: It is important that the list of features has the *same order* as
-          the features in the matrix that the model was trained on.
+    #def _create_feature_map(self, eps):
+        #"""Creates a feature map file that interoperates with the XGBoost boosters
+        #dump method.
 
-        Args:
-            eps (float): `eps` value used in finding the set of unique LAEs in
-              the GB system.
-        """
-        with open(self.feature_map_file(eps), 'w') as outfile:
-            for i, feat in enumerate(self.store.features[eps]):
-                outfile.write('{0}\t{1}-{2}\tq\n'.format(i, *feat))
+        #.. note:: It is important that the list of features has the *same order* as
+          #the features in the matrix that the model was trained on.
 
-    def importance(self, eps, model):
-        """Calculates the feature importances based on the specified XGBoost
-        model.
+        #Args:
+            #eps (float): `eps` value used in finding the set of unique LAEs in
+              #the GB system.
+        #"""
+        #with open(self.feature_map_file(eps), 'w') as outfile:
+            #for i, feat in enumerate(self.store.features[eps]):
+                #outfile.write('{0}\t{1}-{2}\tq\n'.format(i, *feat))
 
-        Args:
-            eps (float): `eps` value used in finding the set of unique LAEs in
-              the GB system.
-            model: one of :class:`xgboost.XGBClassifier` or
-              :class:`xgboost.XGBRegressor`.
-        """
-        from gblearn.analysis import order_features_by_gains
-        mapfile = self.feature_map_file(eps)
-        gains = order_features_by_gains(model.get_booster(), mapfile)
-        result = {
-            "cover": [],
-            "gain": []
-        }
-        for key, gdict in gains:
-            result["cover"].append((key, gdict["cover"]))
-            result["gain"].append((key, gdict["gain"]))
-            
-        return result
-                
+    #def importance(self, eps, model):
+        #"""Calculates the feature importances based on the specified XGBoost
+        #model.
+
+        #Args:
+            #eps (float): `eps` value used in finding the set of unique LAEs in
+              #the GB system.
+            #model: one of :class:`xgboost.XGBClassifier` or
+              #:class:`xgboost.XGBRegressor`.
+        #"""
+        #from gblearn.analysis import order_features_by_gains
+        #mapfile = self.feature_map_file(eps)
+        #gains = order_features_by_gains(model.get_booster(), mapfile)
+        #result = {
+            #"cover": [],
+            #"gain": []
+        #}
+        #for key, gdict in gains:
+            #result["cover"].append((key, gdict["cover"]))
+            #result["gain"].append((key, gdict["gain"]))
+
+        #return result
+
 class GrainBoundary(object):
     """Represents a grain boundary that is defined by a list of atomic
     positions.
@@ -577,14 +638,14 @@ class GrainBoundary(object):
         self.xyz = xyz.copy()
         self.types = types
         self.params = params.copy() if params is not None else {}
-        
+
         if makelat:
             self.box = box
             self.lattice = make_lattice(box)
         else:
             self.box = None
             self.lattice = box.copy()
-            
+
         self.calculator = SOAPCalculator(**soapargs)
         self.Z = Z
         self.LAEs = None
@@ -608,10 +669,11 @@ class GrainBoundary(object):
                 else:
                     msg.warn("Cannot set extra attribute `{}`; "
                              "already exists.".format(k))
-        else:
-            self.extras = []    
-        
+        else:# pragma: no cover
+            self.extras = []
+
         self.P = None
+        self.Scatter = None
         self._atoms = None
         """quippy.atoms.Atoms: representation of the atoms at the boundary that
         is interoperable with QUIP.
@@ -624,7 +686,7 @@ class GrainBoundary(object):
         """numpy.ndarray: matrix of the dot product of every row in :attr:`NP`
         with every other row.
         """
-        
+
     def __len__(self):
         return len(self.xyz)
 
@@ -651,17 +713,6 @@ class GrainBoundary(object):
             self._K = np.dot(NP, NP.T)
         return self._K
 
-    def load(self, attr, filepath):
-        """Loads a SOAP matrix `P` for this GB from serialized file.
-
-        Args:
-            attr (str): attribute to load from file; one of ['P', 'R'].
-            filepath (str): full path to the file to load.
-        """
-        from os import path
-        if path.isfile(filepath):
-            setattr(self, attr, np.load(filepath))
-
     @property
     def gbids(self):
         """Calculates the set of atom ids that fall within the padding/cutoff
@@ -687,7 +738,7 @@ class GrainBoundary(object):
             ids = methmap[subsel](self.xyz, getattr(self, subpar),
                                   types=self.types, **self.selectargs)
             return ids
-            
+
     def trim(self, ids=None):
         """Trims the atoms list, types list and any extras in this GB object so
         that it only includes atoms that fall within the cutoff constraints of
@@ -699,7 +750,7 @@ class GrainBoundary(object):
         """
         if ids is None:
             ids = self.gbids
-            
+
         #Since we applied padding to the SOAP vectors again, we need
         #to restrict the XYZ coordinates and other extras of the GB
         #to conform to the new size.
@@ -712,7 +763,7 @@ class GrainBoundary(object):
             current = getattr(self, k)
             if hasattr(current, "__getitem__"):
                 setattr(self, k, np.array(current)[ids])
-            
+
     def soap(self, cache=True):
         """Calculates the SOAP vector matrix for the atomic environments at the
         grain boundary.
@@ -735,8 +786,24 @@ class GrainBoundary(object):
                 self.P = P
             else:
                 return P
-                    
+
         return self.P
+
+    def scatter(self, cache=True):
+        """Calculates the Scatter vector for the GB.
+
+        Args:
+            cache (bool): when True, cache the resulting Scatter vector.
+        """
+        if self.Scatter is None:
+            Scatter = np.arange(10)
+
+            if cache:
+                self.Scatter = Scatter
+            else:
+                return Scatter
+
+        return self.Scatter
 
     @property
     def atoms(self):
@@ -753,7 +820,7 @@ class GrainBoundary(object):
                 a.add_atoms(xyz, self.Z)
             self._atoms = a
         return self._atoms
-        
+
     def save_xyz(self, filename, species=None, vacuum=False):
         """Writes the grain boundary atoms to extended XYZ file format
         that can be used with QUIP.
@@ -784,4 +851,4 @@ class GrainBoundary(object):
             import quippy.cinoutput as qcio
             out = qcio.CInOutputWriter(filepath)
             self.atoms.write(out)
-            out.close()                    
+            out.close()

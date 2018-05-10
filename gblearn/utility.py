@@ -15,7 +15,7 @@ def chdir(target):
     finally:
         chdir(current)
 
-def colorspace(size):
+def colorspace(size):# pragma: no cover
     """Returns an cycler over a linear color space with 'size' entries.
 
     Args:

@@ -12,7 +12,7 @@ from tqdm import tqdm
 import numpy as np
 from gblearn import msg
 from contextlib import contextmanager
-    
+
 class DiskCollection(object):
     """For large grain boundary collections, it may not be possible to keep all
     SOAP matrices and their derivatives in memory at the same time for
@@ -39,7 +39,7 @@ class DiskCollection(object):
         self.root = path.abspath(path.expanduser(root))
         if not path.isdir(self.root):
             mkdir(self.root)
-            
+
         self.files = OrderedDict([(f, path.join(self.root, "{}.npy".format(f)))
                                   for f in gbids])
         self.gbids = gbids
@@ -56,8 +56,8 @@ class DiskCollection(object):
 
         if not self.restricted:# pragma: no cover
             self.cache[gbid] = value
-    
-    @contextmanager    
+
+    @contextmanager
     def __getitem__(self, key):
         if not self.restricted and key in self.cache:# pragma: no cover
             yield self.cache[key]
@@ -79,12 +79,12 @@ class ResultStore(object):
 
     .. note:: The result store creates separate sub-folders `P_` for the full
       SOAP matrices of each GB; `U_` for the unique decompositions at different
-      epsilon values; `ASR_` for the ASR representation; and `LER_` for the LER
+      epsilon values; `ASR_` for the ASR representation; `LER_` for the LER
       representations (tied to particular epsilon values and unique
-      decompositions).
+      decompositions); `Scatter_` for the Scatter vectors of each GB.
 
-    .. note:: If any of the results (such as :attr:`P`, :attr:`U`, :attr:`ASR`
-      or :attr:`LER`) are not saved in the store, `None` will be returned.
+    .. note:: If any of the results (such as :attr:`P`, :attr:`U`, :attr:`ASR`,
+      :attr:`LER`, or :attr:`Scatter`) are not saved in the store, `None` will be returned.
 
     .. note:: If `root=None` then the results will only be cached in memory and
       *not* to disk.
@@ -112,8 +112,8 @@ class ResultStore(object):
           folder name for specific variations of the representations.
     """
     soapstr = ["lmax", "nmax", "rcut"]
-    reps = ["P", "U", "ASR", "LER", "features"]
-    
+    reps = ["P", "U", "ASR", "LER", "features", "Scatter"]
+
     def __init__(self, gbids, root=None, restricted=True, **soapargs):
         self.root = root
         self.restricted = restricted
@@ -126,7 +126,7 @@ class ResultStore(object):
             eargs = ', '.join(["`{}`".format(a) for a in self.soapstr])
             emsg = "{} are required arguments for ResultStore.".format(eargs)
             raise ValueError(emsg)
-            
+
         self.gbids = gbids
         self.soapargs = {}
         self.soapargs.update(soapargs)
@@ -144,7 +144,7 @@ class ResultStore(object):
         """
         for r in self.reps:
             setattr(self, '_' + r, None)
-        
+
     def _setup_dirs(self):
         """Creates any missing directories if the store is not running in
         memory-only mode.
@@ -155,7 +155,7 @@ class ResultStore(object):
         #Load any existing gbmap to make sure we are dealing with the same GB
         #collection.
         import json
-        idfile = path.join(self.root, "gbids.json")        
+        idfile = path.join(self.root, "gbids.json")
         if path.isfile(idfile):
             with open(idfile) as f:
                 _gbids = json.load(f)
@@ -164,12 +164,12 @@ class ResultStore(object):
         else:
             with open(idfile, 'w') as f:
                 json.dump(self.gbids, f)
-            
+
         dirs = ["{}_".format(r) for r in self.reps]
         for sdir in dirs:
             if not path.isdir(getattr(self, sdir)):
                 mkdir(getattr(self, sdir))
-        
+
     @property
     def SOAP(self):
         """Returns the current SOAP paramater configuration.
@@ -183,15 +183,15 @@ class ResultStore(object):
     @SOAP.setter
     def SOAP(self, value):
         """Sets the current SOAP parameter configuration.
-        
+
         Args:
             value (dict): of key-value SOAP parameter pairs.
         """
         self.soapargs.update(value)
-        
+
         #Clobber all of the cached values since we undid the SOAP parameters.
         self._clobber_reps()
-        
+
     @property
     def SOAP_str(self):
         """Returns the directory string for the current SOAP configuration. It
@@ -200,7 +200,7 @@ class ResultStore(object):
         if any(p is None for p in self.SOAP):
             raise ValueError("You can't use the result store until SOAP "
                              "parameters have been set. Pass them to the "
-                             "constructor, or use property SOAP.")            
+                             "constructor, or use property SOAP.")
         return "{0:d}_{1:d}_{2:.2f}".format(*self.SOAP)
 
     @property
@@ -211,7 +211,7 @@ class ResultStore(object):
           configured values of `lmax`, `nmax` and `rcut` in the store.
 
         Returns:
-            dict: keys are `gbid`, values are the SOAP reprentation for that
+            dict: keys are `gbid`, values are the SOAP reprsentation for that
             particular GB.
         """
         return self._np_get("P")
@@ -230,7 +230,28 @@ class ResultStore(object):
               SOAP matrices for the GBs.
         """
         self._np_set("P", value)
-    
+
+    @property
+    def Scatter(self):
+        """Scatter Representation for each GB in the collection.
+
+        Returns:
+            dict: keys are 'gbid', values are the Scatter representation for that
+            particular GB
+        """
+        return self._np_get("Scatter")
+
+    @Scatter.setter
+    def Scatter(self, value):
+        """Sets the value of the Scatter representation for each of the GBs in this
+        collection.
+
+        Args:
+            value (dict): keys are `gbid`, values are :class:`numpy.ndarray`
+              Scatter matrices for the GBs.
+        """
+        self._np_set("Scatter", value)
+
     def _np_get(self, attr):
         """Restores a :class:`numpy.ndarray` based representation collection for
         each GB in the result store.
@@ -282,7 +303,7 @@ class ResultStore(object):
 
         dc = DiskCollection(target, self.gbids, self.restricted)
         setattr(self, '_' + attr, dc)
-            
+
         saved = []
         for gbid, A in tqdm(value.items()):
             dc[gbid] = A
@@ -290,35 +311,35 @@ class ResultStore(object):
 
         assert len(np.setdiff1d(self.gbids, saved)) == 0
 
-    @property
-    def features(self):
-        """Gets the list of unique ids that describe each set of unique
-        enviroments as a function of `eps`.
+    #@property
+    #def features(self):
+        #"""Gets the list of unique ids that describe each set of unique
+        #enviroments as a function of `eps`.
 
-        .. warning:: These value are dependent on the particular SOAP parameter
-          set. They are saved accordingly.
+        #.. warning:: These value are dependent on the particular SOAP parameter
+          #set. They are saved accordingly.
 
-        Returns:
-            dict: keys are values of `epsilon`, rounded to 5 decimal places;
-            values are a list of `(gbid, eid)` tuples.
-        """
-        return self._agg_get("features")
+        #Returns:
+            #dict: keys are values of `epsilon`, rounded to 5 decimal places;
+            #values are a list of `(gbid, eid)` tuples.
+        #"""
+        #return self._agg_get("features")
 
-    @features.setter
-    def features(self, value):
-        """Sets the value of the feature descriptors in this store. It is
-        stored according to the current SOAP parameter set.
+    #@features.setter
+    #def features(self, value):
+        #"""Sets the value of the feature descriptors in this store. It is
+        #stored according to the current SOAP parameter set.
 
-        .. warning:: If a file already exists for a particular unique
-          decomposition at a value of `eps`, it will *not* be overwritten, but
-          skipped.
+        #.. warning:: If a file already exists for a particular unique
+          #decomposition at a value of `eps`, it will *not* be overwritten, but
+          #skipped.
 
-        Args:
-            value (dict): keys are epsilon value controlling when two LAEs are
-              similar; values are lists of `(gbid, eid)` tuples.
-        """
-        self._agg_set("features", value)
-        
+        #Args:
+            #value (dict): keys are epsilon value controlling when two LAEs are
+              #similar; values are lists of `(gbid, eid)` tuples.
+        #"""
+        #self._agg_set("features", value)
+
     @property
     def U(self):
         """Gets the value of the unique decomposition in this store.
@@ -347,7 +368,7 @@ class ResultStore(object):
               :meth:`~gblearn.gb.GrainBoundaryCollection.uniquify`.
         """
         self._agg_set("U", value)
-    
+
     def _agg_get(self, attr):
         """Returns a dictionary of aggregated representations for th given name.
 
@@ -361,17 +382,17 @@ class ResultStore(object):
         #Handle the memory-only case.
         if self.root is None:
             return {}
-        
+
         from glob import glob
         from gblearn.utility import chdir
         from cPickle import load
-        
+
         result = {}
         rpath = getattr(self, attr + '_')
         target = path.join(rpath, self.SOAP_str)
         if not path.isdir(target):
             return result
-        
+
         with chdir(target):
             for pkl in glob("*.pkl"):
                 seps = pkl[:-4]
@@ -394,7 +415,7 @@ class ResultStore(object):
         if getattr(self, '_' + attr) is None:
             setattr(self, '_' + attr, {})
         getattr(self, '_' + attr).update(value)
-        
+
         #Handle the memory-only case.
         if self.root is None:
             return
@@ -403,7 +424,7 @@ class ResultStore(object):
         target = path.join(rpath, self.SOAP_str)
         if not path.isdir(target):
             mkdir(target)
-            
+
         from cPickle import dump
         for eps, utup in value.items():
             upath = path.join(target, "{0:.5f}.pkl".format(eps))
@@ -427,10 +448,10 @@ class ResultStore(object):
           parameters, then it will *not* be re-saved.
 
         Args:
-            value (numpy.ndarray): ASR for the GB collection.        
+            value (numpy.ndarray): ASR for the GB collection.
         """
         self._single_set("ASR", value)
-    
+
     def _single_get(self, attr):
         """Returns a representation for the GB system that is based in a single
         :class:`numpy.ndarray` *without* parameter dependence (except for SOAP).
@@ -450,18 +471,18 @@ class ResultStore(object):
 
     def _single_set(self, attr, value):
         setattr(self, '_' + attr, value)
-        
+
         #Handle the memory-only case.
         if self.root is None:
             return
-        
+
         rpath = getattr(self, attr + '_')
         target = path.join(rpath, "{}.npy".format(self.SOAP_str))
         if not path.isfile(target):
             np.save(target, value)
 
     @property
-    def LER(self):        
+    def LER(self):
         """Gets the LER for the current SOAP configuration.
 
         Returns:
