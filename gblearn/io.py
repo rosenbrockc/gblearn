@@ -298,7 +298,7 @@ class ResultStore(object):
 
         rpath = getattr(self, attr + '_')
         target = path.join(rpath, self.SOAP_str)
-        if not path.isdir(target):
+        if not path.isdir(target):# pragma: no cover
             mkdir(target)
 
         dc = DiskCollection(target, self.gbids, self.restricted)

@@ -28,7 +28,7 @@ class XYZParser(object):
         self.types = None
         self.box = self.atoms.lattice
 
-    def __eq__(self, other):
+    def __eq__(self, other):# pragma: no cover
         return self.atoms == other.atoms
     def __len__(self):
         return self.atoms.n

@@ -107,12 +107,12 @@ class GrainBoundaryCollection(OrderedDict):
                     vi = getattr(gb, name)
                     if isinstance(vi, FortranArray):
                         values.append(np.array(vi.T))
-                    else:
+                    else: # pragma: no cover
                         values.append(vi)
                 elif name in gb.params:
                     values.append(gb.params[name])
                     scalar = True
-                else:
+                else: # pragma: no cover
                     break
 
             if scalar:
@@ -214,13 +214,13 @@ class GrainBoundaryCollection(OrderedDict):
             gb = t.gb(**kwargs)
             self[gbid] = gb
 
-    def trim():
+    def trim(self):
         """Removes the atoms from each grain boundary that were included as
         padding for the SOAP vectors.
         """
         for gbid, gb in self.items():
             gb.trim()
-            
+
     def soap(self, autotrim=True):
         """Calculates the SOAP vector matrix for the atomic environments at
         each grain boundary.
@@ -234,7 +234,9 @@ class GrainBoundaryCollection(OrderedDict):
         for gbid, gb in tqdm(self.items()):
             P[gbid] = gb.soap(cache=False)
 
-<<<<<<< HEAD
+        if autotrim:
+            self.trim()
+
     def scatter(self):
         """Calculates the Scatter vectors for each grain boundary.
         """
@@ -258,11 +260,6 @@ class GrainBoundaryCollection(OrderedDict):
 
         return result
 
-=======
-        if autotrim:
-            self.trim()
-            
->>>>>>> 445dc1a67d680dd48780cb541ac9445454fcd1d9
     @property
     def P(self):
         """Returns the computed SOAP matrices for each GB in the collection.
@@ -353,11 +350,7 @@ class GrainBoundaryCollection(OrderedDict):
 
         U = OrderedDict()
         U[('0', 0)] = self.seed
-<<<<<<< HEAD
 
-=======
-        
->>>>>>> 445dc1a67d680dd48780cb541ac9445454fcd1d9
         for gbid in tqdm(self.gbfiles):
             with self.P[gbid] as NP:
                 self._uniquify(NP, gbid, U, eps)
@@ -367,13 +360,8 @@ class GrainBoundaryCollection(OrderedDict):
         used = {k: False for k in U}
         for gbid in tqdm(self.gbfiles):
             with self.P[gbid] as NP:
-<<<<<<< HEAD
                 LAEs = self._classify(NP, gbid, U, eps, used)
-            	result["GBs"][gbid] = LAEs
-=======
-                LAEs = self._classify(NP, gbid, U, eps, used)      			
                 result["GBs"][gbid] = LAEs
->>>>>>> 445dc1a67d680dd48780cb541ac9445454fcd1d9
 
         #Now, remove any LAEs from U that didn't get used. We shouldn't really
         #have many of these.
@@ -429,61 +417,34 @@ class GrainBoundaryCollection(OrderedDict):
         """
         from gblearn.soap import S
         result = {}
-<<<<<<< HEAD
 
-	for i in range(len(NP)):
-	    Pv = NP[i,:]
-	    K0 = 1.0 #Lowest similarity kernel among all unique vectors.
-	    U0 = None #Key of the environment corresponding to K0
-
-	    for u, uP in uni.items():
-		if u not in result:
-=======
-        
         for i in range(len(NP)):
             Pv = NP[i,:]
             K0 = 1.0 #Lowest similarity kernel among all unique vectors.
             U0 = None #Key of the environment corresponding to K0
-            
+
             for u, uP in uni.items():
                 if u not in result:
->>>>>>> 445dc1a67d680dd48780cb541ac9445454fcd1d9
                     result[u] = [u]
                 K = S(Pv, uP)
 
                 if K < eps:
                     #These vectors are considered to be equivalent. Store the
                     #equivalency in the result.
-<<<<<<< HEAD
-        	    if K < K0:
-			K0 = K
-			U0 = u
-
-	    if K0 < eps:
-		result[U0].append((PID, i))
-		used[U0] = True
-	    else:# pragma: no cover
-=======
                     if K < K0:
                         K0 = K
                         U0 = u
-                
+
             if K0 < eps:
                 result[U0].append((PID, i))
                 used[U0] = True
             else:# pragma: no cover
->>>>>>> 445dc1a67d680dd48780cb541ac9445454fcd1d9
                 #This is just a catch warning; it should never happen in
                 #practice.
                 wmsg = "There was an unclassifiable SOAP vector: {}"
                 msg.warn(wmsg.format((PID, i)))
-<<<<<<< HEAD
 
-   	return result
-=======
-                
         return result
->>>>>>> 445dc1a67d680dd48780cb541ac9445454fcd1d9
 
     #def features(self, eps):
         #"""Calculates the feature descriptor for the given `eps` value and
@@ -832,7 +793,7 @@ class GrainBoundary(object):
         from os import path
         filepath = path.abspath(path.expanduser(filename))
 
-        if vacuum:
+        if vacuum:# pragma: no cover
             #8
             #Lattice="5.44 0.0 0.0 0.0 5.44 0.0 0.0 0.0 5.44" Properties=species:S:1:pos:R:3 Time=0.0
             #Si        0.00000000      0.00000000      0.00000000
