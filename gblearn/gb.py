@@ -107,12 +107,12 @@ class GrainBoundaryCollection(OrderedDict):
                     vi = getattr(gb, name)
                     if isinstance(vi, FortranArray):
                         values.append(np.array(vi.T))
-                    else:
+                    else: # pragma: no cover
                         values.append(vi)
                 elif name in gb.params:
                     values.append(gb.params[name])
                     scalar = True
-                else:
+                else: # pragma: no cover
                     break
 
             if scalar:

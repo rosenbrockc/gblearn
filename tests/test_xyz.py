@@ -54,11 +54,10 @@ def test_gb(XYZD):
     assert len(GBXYZ.cna) == 7080
 
 def test_xyzproperty(GBColXYZ):
-    """Tests getting the properties of GB collections made from xyz files
+    """Tests getting properties of GB collections made from xyz files
     """
-    GBColXYZ.get_property("energy")
-    GBColXYZ.get_property("mobility")
-    GBColXYZ.get_property("shear")
+    assert GBColXYZ.get_property("energy").shape == (6,)
+    GBColXYZ.get_property("species")
 
 def test_xyzLER(GBColXYZ):
     """Tests SOAP calculation and LER collections for GB collection made from xyz files
@@ -71,6 +70,6 @@ def test_xyzLER(GBColXYZ):
     seed = np.load(path.join(reporoot, "tests", "xyz", "alpha_fe.npy"))
     GBColXYZ.seed = seed
     eps = 0.002500
-    U = GBColXYZ.U(eps)
     LER = GBColXYZ.LER(eps)
+    U = GBColXYZ.U(eps)
     assert LER.shape == (len(GBColXYZ), len(U["U"]))
