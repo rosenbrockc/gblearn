@@ -39,12 +39,20 @@ folder.
 
    # We explicitly call :meth:`load` to parse the GB files. Then, construct
    # the SOAP representation for each GB.
-   olmsted.load()
-   
+   # As part of the load function, we call it with Z=28 for the nickel database,
+   # and also give it a method and pattern to use
+   olmsted.load(Z=28, method="cna_z", pattr="c_cna")
+
+   # Calculate the SOAP representation.
    # The SOAP representation includes padding around the boundary atoms, so
-   # that each atom in the GB has a full `rcut` of atoms around it. Remove
-   # the atoms that don't have full environments.
-   olmsted.soap()   
+   # that each atom in the GB has a full `rcut` of atoms around it.
+   # The "meth: 'soap' auto trims those atoms that don't have full environments.
+   olmsted.soap()
+
+   # Load the perfect FCC as a seed so the LER can be constructed.
+   # It assumes the the seed file is found at /seeds/"Ni.pissnnl_seed.txt"
+   seed = np.loadtxt(/seeds/"Ni.pissnnl_seed.txt")
+   olmsted.seed = seed
 
    #Now, we can finally construct the LER.
    olmsted.LER(0.0025)

@@ -446,27 +446,27 @@ class GrainBoundaryCollection(OrderedDict):
 
         return result
 
-    #def features(self, eps):
-        #"""Calculates the feature descriptor for the given `eps` value and
-        #places it in the store.
+    def features(self, eps):
+        """Calculates the feature descriptor for the given `eps` value and
+        places it in the store.
 
-        #Args:
-            #eps (float): cutoff value for deciding whether two vectors are
-              #unique.
-        #"""
-        #result = None
-        #features = self.store.features
-        #if eps in features:
-            #result = features[eps]
+        Args:
+            eps (float): cutoff value for deciding whether two vectors are
+              unique.
+        """
+        result = None
+        features = self.store.features
+        if eps in features:
+            result = features[eps]
 
-        #if result is None:
-            #U = self.U(eps)
-            #result = list(U["U"].keys())
-            #features[eps] = result
-            #self.store.features = features
-            #self._create_feature_map(eps)
+        if result is None:
+            U = self.U(eps)
+            result = list(U["U"].keys())
+            features[eps] = result
+            self.store.features = features
+            self._create_feature_map(eps)
 
-        #return result
+        return result
 
     def LER(self, eps):
         """Produces the LAE fingerprint for each GB in the system. The LAE
@@ -504,53 +504,53 @@ class GrainBoundaryCollection(OrderedDict):
 
         return result
 
-    #def feature_map_file(self, eps):
-        #"""Returns the full path to the feature map file.
+    def feature_map_file(self, eps):
+        """Returns the full path to the feature map file.
 
-        #Args:
-            #eps (float): `eps` value used in finding the set of unique LAEs in
-              #the GB system.
-        #"""
-        #filename = "{0:.5f}-features.dat".format(eps)
-        #return path.join(self.store.features_, filename)
+        Args:
+            eps (float): `eps` value used in finding the set of unique LAEs in
+              the GB system.
+        """
+        filename = "{0:.5f}-features.dat".format(eps)
+        return path.join(self.store.features_, filename)
 
-    #def _create_feature_map(self, eps):
-        #"""Creates a feature map file that interoperates with the XGBoost boosters
-        #dump method.
+    def _create_feature_map(self, eps):
+        """Creates a feature map file that interoperates with the XGBoost boosters
+        dump method.
 
-        #.. note:: It is important that the list of features has the *same order* as
+        .. note:: It is important that the list of features has the *same order* as
           #the features in the matrix that the model was trained on.
 
-        #Args:
-            #eps (float): `eps` value used in finding the set of unique LAEs in
-              #the GB system.
-        #"""
-        #with open(self.feature_map_file(eps), 'w') as outfile:
-            #for i, feat in enumerate(self.store.features[eps]):
-                #outfile.write('{0}\t{1}-{2}\tq\n'.format(i, *feat))
+        Args:
+            eps (float): `eps` value used in finding the set of unique LAEs in
+              the GB system.
+        """
+        with open(self.feature_map_file(eps), 'w') as outfile:
+            for i, feat in enumerate(self.store.features[eps]):
+                outfile.write('{0}\t{1}-{2}\tq\n'.format(i, *feat))
 
-    #def importance(self, eps, model):
-        #"""Calculates the feature importances based on the specified XGBoost
-        #model.
+    def importance(self, eps, model):
+        """Calculates the feature importances based on the specified XGBoost
+        model.
 
-        #Args:
-            #eps (float): `eps` value used in finding the set of unique LAEs in
-              #the GB system.
-            #model: one of :class:`xgboost.XGBClassifier` or
-              #:class:`xgboost.XGBRegressor`.
-        #"""
-        #from gblearn.analysis import order_features_by_gains
-        #mapfile = self.feature_map_file(eps)
-        #gains = order_features_by_gains(model.get_booster(), mapfile)
-        #result = {
-            #"cover": [],
-            #"gain": []
-        #}
-        #for key, gdict in gains:
-            #result["cover"].append((key, gdict["cover"]))
-            #result["gain"].append((key, gdict["gain"]))
+        Args:
+            eps (float): `eps` value used in finding the set of unique LAEs in
+              the GB system.
+            model: one of :class:`xgboost.XGBClassifier` or
+              :class:`xgboost.XGBRegressor`.
+        """
+        from gblearn.analysis import order_features_by_gains
+        mapfile = self.feature_map_file(eps)
+        gains = order_features_by_gains(model.get_booster(), mapfile)
+        result = {
+            "cover": [],
+            "gain": []
+        }
+        for key, gdict in gains:
+            result["cover"].append((key, gdict["cover"]))
+            result["gain"].append((key, gdict["gain"]))
 
-        #return result
+        return result
 
 class GrainBoundary(object):
     """Represents a grain boundary that is defined by a list of atomic
