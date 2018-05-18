@@ -9,6 +9,7 @@ objects and the many results they produce with disk storage.
 """
 from os import path, mkdir
 from tqdm import tqdm
+tqdm.monitor_interval = 0
 import numpy as np
 from gblearn import msg
 from contextlib import contextmanager

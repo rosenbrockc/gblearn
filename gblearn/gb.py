@@ -5,6 +5,7 @@ from collections import OrderedDict
 from gblearn import msg
 from os import path
 from tqdm import tqdm
+tqdm.monitor_interval = 0
 from quippy.farray import FortranArray
 
 class GrainBoundaryCollection(OrderedDict):
@@ -519,7 +520,7 @@ class GrainBoundaryCollection(OrderedDict):
         dump method.
 
         .. note:: It is important that the list of features has the *same order* as
-          #the features in the matrix that the model was trained on.
+          the features in the matrix that the model was trained on.
 
         Args:
             eps (float): `eps` value used in finding the set of unique LAEs in

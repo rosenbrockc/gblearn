@@ -51,7 +51,7 @@ folder.
 
    # Load the perfect FCC as a seed so the LER can be constructed.
    # It assumes the the seed file is found at /seeds/"Ni.pissnnl_seed.txt"
-   seed = np.loadtxt(/seeds/"Ni.pissnnl_seed.txt")
+   seed = np.loadtxt("/seeds/Ni.pissnnl_seed.txt")
    olmsted.seed = seed
 
    #Now, we can finally construct the LER.
