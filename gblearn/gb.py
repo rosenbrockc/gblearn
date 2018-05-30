@@ -409,7 +409,7 @@ class GrainBoundaryCollection(OrderedDict):
                     #This vector already has at least one possible classification
                     break
             else:
-                uni[(gbid, i)] = Pv
+                uni[(gbid, i)] = np.repeat(Pv, 1)
 
     def _classify(self, NP, PID, uni, eps, used):
         """Runs through the collection a second time to reclassify each
