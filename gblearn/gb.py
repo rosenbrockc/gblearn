@@ -187,7 +187,7 @@ class GrainBoundaryCollection(OrderedDict):
 
         msg.info("Found {} grain boundaries.".format(len(self.gbfiles)))
 
-    def load(self, parser=None, **kwargs):
+    def load(self, parser=None, autotrim=True, **kwargs):
         """Loads the GBs from their files to create :class:`GrainBoundary`
         objects.
 
@@ -214,6 +214,9 @@ class GrainBoundaryCollection(OrderedDict):
             t = parser(gbpath)
             gb = t.gb(**kwargs)
             self[gbid] = gb
+
+        if autotrim and len(self.store.P) > 0: # pragma: no cover
+            self.trim()
 
     def trim(self):
         """Removes the atoms from each grain boundary that were included as
@@ -409,7 +412,7 @@ class GrainBoundaryCollection(OrderedDict):
                     #This vector already has at least one possible classification
                     break
             else:
-                uni[(gbid, i)] = np.repeat(Pv, 1)
+                uni[(gbid, i)] = np.copy(Pv)
 
     def _classify(self, NP, PID, uni, eps, used):
         """Runs through the collection a second time to reclassify each
