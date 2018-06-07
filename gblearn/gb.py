@@ -412,6 +412,9 @@ class GrainBoundaryCollection(OrderedDict):
                     #This vector already has at least one possible classification
                     break
             else:
+                #Numpy slicing increases the ref count, so if the sliced array is not
+                #copied than the array cannot be garbage collected when the context manager
+                #deletes the original array
                 uni[(gbid, i)] = np.copy(Pv)
 
     def _classify(self, NP, PID, uni, eps, used):
