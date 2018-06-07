@@ -9,6 +9,7 @@ objects and the many results they produce with disk storage.
 """
 from os import path, mkdir
 from tqdm import tqdm
+tqdm.monitor_interval = 0
 import numpy as np
 from gblearn import msg
 from contextlib import contextmanager
@@ -298,7 +299,7 @@ class ResultStore(object):
 
         rpath = getattr(self, attr + '_')
         target = path.join(rpath, self.SOAP_str)
-        if not path.isdir(target):
+        if not path.isdir(target):# pragma: no cover
             mkdir(target)
 
         dc = DiskCollection(target, self.gbids, self.restricted)
@@ -311,34 +312,34 @@ class ResultStore(object):
 
         assert len(np.setdiff1d(self.gbids, saved)) == 0
 
-    #@property
-    #def features(self):
-        #"""Gets the list of unique ids that describe each set of unique
-        #enviroments as a function of `eps`.
+    @property
+    def features(self):
+        """Gets the list of unique ids that describe each set of unique
+        enviroments as a function of `eps`.
 
-        #.. warning:: These value are dependent on the particular SOAP parameter
+        .. warning:: These value are dependent on the particular SOAP parameter
           #set. They are saved accordingly.
 
-        #Returns:
-            #dict: keys are values of `epsilon`, rounded to 5 decimal places;
-            #values are a list of `(gbid, eid)` tuples.
-        #"""
-        #return self._agg_get("features")
+        Returns:
+            dict: keys are values of `epsilon`, rounded to 5 decimal places;
+            values are a list of `(gbid, eid)` tuples.
+        """
+        return self._agg_get("features")
 
-    #@features.setter
-    #def features(self, value):
-        #"""Sets the value of the feature descriptors in this store. It is
-        #stored according to the current SOAP parameter set.
+    @features.setter
+    def features(self, value):
+        """Sets the value of the feature descriptors in this store. It is
+        stored according to the current SOAP parameter set.
 
-        #.. warning:: If a file already exists for a particular unique
-          #decomposition at a value of `eps`, it will *not* be overwritten, but
-          #skipped.
+        .. warning:: If a file already exists for a particular unique
+          decomposition at a value of `eps`, it will *not* be overwritten, but
+          skipped.
 
-        #Args:
-            #value (dict): keys are epsilon value controlling when two LAEs are
-              #similar; values are lists of `(gbid, eid)` tuples.
-        #"""
-        #self._agg_set("features", value)
+        Args:
+            value (dict): keys are epsilon value controlling when two LAEs are
+              similar; values are lists of `(gbid, eid)` tuples.
+        """
+        self._agg_set("features", value)
 
     @property
     def U(self):
