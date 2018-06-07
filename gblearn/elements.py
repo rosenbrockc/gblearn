@@ -32,7 +32,7 @@ def atoms(element):
 
     emsg = "Element {} with structure {} is not auto-configurable."
     msg.err(emsg.format(element, lattice))
-    
+
 def shells(element, n=6, rcut=6.):
     """Returns the neighbor shells for the specified element.
 
@@ -70,7 +70,7 @@ def pissnnl(element, lmax=12, nmax=12, rcut=6.0, sigma=0.5, trans_width=0.5):
         rcut (float): local environment finite cutoff parameter.
         sigma (float): width parameter for the Gaussians on each atom.
         trans_width (float): distance over which the coefficients in the
-            radial functions are smoothly transitioned to zero.    
+            radial functions are smoothly transitioned to zero.
     """
     lattice, latpar, Z, basis = elements[element]
     from gblearn.soap import SOAPCalculator

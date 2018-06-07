@@ -41,7 +41,7 @@ folder.
    # the SOAP representation for each GB.
    # As part of the load function, we call it with Z=28 for the nickel database,
    # and also give it a method and pattern to use
-   olmsted.load(Z=28, method="cna_z", pattr="c_cna")
+   olmsted.load(Z=28, method="cna", pattr="c_cna")
 
    # Calculate the SOAP representation.
    # The SOAP representation includes padding around the boundary atoms, so
