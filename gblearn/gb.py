@@ -150,6 +150,7 @@ class GrainBoundaryCollection(OrderedDict):
         with open(filename) as f:
             for line in f:
                 if iskip < skip:# pragma: no cover
+                    iskip += 1
                     continue
 
                 if delimiter is None:
