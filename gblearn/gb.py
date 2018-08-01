@@ -298,6 +298,9 @@ class GrainBoundaryCollection(OrderedDict):
         """Returns the uniquified set of environments for the GB collection and
         current `soapargs`.
 
+        .. note:: This method also assigns and adds the LAE number to each atom in
+        each grain boundary in the collection
+
         Args:
             eps (float): similarity threshlod parameter.
         """
@@ -320,6 +323,8 @@ class GrainBoundaryCollection(OrderedDict):
             for u, elist in LAEs.items():
                 for PID, VID in elist[1:]:
                     self[gbid].LAEs[VID] = u
+            LAE = [result["U"].keys().index(x) for x in self[gbid].LAEs]
+            self[gbid].atoms.add_property("LAE",LAE)
 
         return result
 
