@@ -546,6 +546,9 @@ class GrainBoundaryCollection(OrderedDict):
         """Calculates the feature importances based on the specified XGBoost
         model.
 
+        .. note:: The model needs to have been fitted to the data before
+          calling this this
+
         Args:
             eps (float): `eps` value used in finding the set of unique LAEs in
               the GB system.
@@ -770,7 +773,15 @@ class GrainBoundary(object):
             cache (bool): when True, cache the resulting Scatter vector.
         """
         if self.Scatter is None:
+            import os
+            tempfile = 'temp.xyz'
+            self.save_xyz(tempfile)
+            filepath = os.path.abspath(os.path.expanduser(tempfile))
             Scatter = np.arange(10)
+            assert os.path.isfile(filepath)
+            os.remove(filepath)
+            assert os.path.isfile(filepath + '.idx')
+            os.remove(filepath + '.idx')
 
             if cache:
                 self.Scatter = Scatter
