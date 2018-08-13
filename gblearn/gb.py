@@ -547,7 +547,7 @@ class GrainBoundaryCollection(OrderedDict):
         model.
 
         .. note:: The model needs to have been fitted to the data before
-          calling this this
+          calling this method
 
         Args:
             eps (float): `eps` value used in finding the set of unique LAEs in
