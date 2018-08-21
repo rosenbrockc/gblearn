@@ -695,7 +695,10 @@ class GrainBoundary(object):
         methmap = {
             "median": sel.median,
             "cna": partial(sel.cna_max, coord=0),
-            "cna_z": partial(sel.cna_max, coord=2)
+            "cna_z": partial(sel.cna_max, coord=2),
+            "vacancy": partial(sel.vacancy, coord=0),# how to drop coord - not needed
+            "edge": partial(sel.dislocation, coord=1),
+            "screw": partial(sel.dislocation, coord=0)
         }
         #Use the same selection parameters that were used to construct
         #the GB in the first place. However, the padding parameter will

@@ -121,3 +121,93 @@ def median(xyz, param, limit_extent=None, tolerance=0.5, width=8., types=None):
     mx = np.mean(space[np.array([m[0] for m in mxi])])
     rind = np.where(np.logical_and(space > mx-width/2., space < mx+width/2.))[0]
     return rind
+
+def vacancy(xyz, cna, types=None, cna_val=1, padding=5.0, coord=0, **kwargs):
+    """Returns the atoms in the crystal whose CNA value deviates from
+    the given type; a buffer of rcut is added for padding to both
+    sides of the grain boundary.
+
+    .. note:: the boundary is isolated by looking for the `min(x)` and
+      `max(x)` where `cna != cna_val` and `type not in [4, 5]`, where
+      types 4 and 5 identify the far sides of the entire crystal,
+      which are far from the GB.
+
+    Args:
+        xyz (numpy.ndarray): each row is an atom. Columns are cartesian atomic
+          positions
+        cna (numpy.ndarray): of `c_cna` values being considered for the
+          selection.
+        types (numpy.ndarray): of crystal types for each atom in the crystal.
+        cna_val (int): type id of the *perfect crystal*.
+        padding (float): how much padding to add to each side of the
+          isolated grain boundary.
+        coord (int): integer coordinate `(x:0, y:1, z:2)` to select with respect
+          to.
+        kwargs (dict): dummy parameter so that selection routines can all accept
+          the same dictionary.
+
+    Returns:
+        numpy.ndarray: of integer indices in `xyz` that match the filtering
+          conditions.
+    """
+    if types is not None:
+        type_mask = np.logical_and(types != 4, types != 5)
+        cna_mask = np.logical_and(cna != cna_val, type_mask)
+    else:
+        cna_mask = cna != cna_val
+    xvals = xyz[cna_mask,coord]
+
+    if len(xvals) == 0:
+        raise ValueError("No atoms selected at the grain boundary.")
+    
+    #Now that we have all atoms that deviate from perfect crystal and
+    #are away from the edges, we find the minimum and maximum values
+    #and add the desired padding to each.
+    minx, maxx = np.min(xvals) - padding, np.max(xvals) + padding
+    result = np.where(np.logical_and(xyz[:,coord] >= minx, xyz[:,coord] <= maxx))[0]
+    return result
+
+def dislocation(xyz, cna, types=None, cna_val=1, padding=5.0, coord=0, **kwargs):
+    """Returns the atoms in the crystal whose CNA value deviates from
+    the given type; a buffer of rcut is added for padding to both
+    sides of the grain boundary.
+
+    .. note:: the boundary is isolated by looking for the `min(x)` and
+      `max(x)` where `cna != cna_val` and `type not in [4, 5]`, where
+      types 4 and 5 identify the far sides of the entire crystal,
+      which are far from the GB.
+
+    Args:
+        xyz (numpy.ndarray): each row is an atom. Columns are cartesian atomic
+          positions
+        cna (numpy.ndarray): of `c_cna` values being considered for the
+          selection.
+        types (numpy.ndarray): of crystal types for each atom in the crystal.
+        cna_val (int): type id of the *perfect crystal*.
+        padding (float): how much padding to add to each side of the
+          isolated grain boundary.
+        coord (int): integer coordinate `(x:0, y:1, z:2)` to select with respect
+          to.
+        kwargs (dict): dummy parameter so that selection routines can all accept
+          the same dictionary.
+
+    Returns:
+        numpy.ndarray: of integer indices in `xyz` that match the filtering
+          conditions.
+    """
+    if types is not None:
+        type_mask = np.logical_and(types != 4, types != 5)
+        cna_mask = np.logical_and(cna != cna_val, type_mask)
+    else:
+        cna_mask = cna != cna_val
+    xvals = xyz[cna_mask,coord]
+
+    if len(xvals) == 0:
+        raise ValueError("No atoms selected at the grain boundary.")
+    
+    #Now that we have all atoms that deviate from perfect crystal and
+    #are away from the edges, we find the minimum and maximum values
+    #and add the desired padding to each.
+    minx, maxx = np.min(xvals) - padding, np.max(xvals) + padding
+    result = np.where(np.logical_and(xyz[:,coord] >= minx, xyz[:,coord] <= maxx))[0]
+    return result
