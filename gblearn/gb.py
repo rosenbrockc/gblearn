@@ -294,7 +294,7 @@ class GrainBoundaryCollection(OrderedDict):
 
         return result
 
-    def U(self, eps):
+    def U(self, eps, **kwargs):
         """Returns the uniquified set of environments for the GB collection and
         current `soapargs`.
 
@@ -303,6 +303,8 @@ class GrainBoundaryCollection(OrderedDict):
 
         Args:
             eps (float): similarity threshlod parameter.
+            kwargs (dict): used to pass the desired parameters to the
+              Locality Sensitive Hashing algorithm used in :meth:`uniquify`.
         """
         result = None
         U = self.store.U
@@ -310,7 +312,7 @@ class GrainBoundaryCollection(OrderedDict):
             result = U[eps]
 
         if result is None:
-            result = self.uniquify(eps)
+            result = self.uniquify(eps, **kwargs)
             U[eps] = result
             self.store.U = U
 
@@ -318,6 +320,7 @@ class GrainBoundaryCollection(OrderedDict):
 	#particular atom the corresponding unique signature. Note that
 	#each unique signature atom list has the unique signature as the
 	#first element, which is why the range starts at 1.
+    #This also populates the atoms objects with their corresponding LAE numbers
         for gbid in self.gbfiles:
             LAEs = result["GBs"][gbid]
             for u, elist in LAEs.items():
@@ -328,7 +331,7 @@ class GrainBoundaryCollection(OrderedDict):
 
         return result
 
-    def uniquify(self, eps):
+    def uniquify(self, eps, threads=0, probes=50):
         """Extracts all the unique LAEs in the entire GB system using the
         specified `epsilon` similarity value.
 
@@ -336,10 +339,21 @@ class GrainBoundaryCollection(OrderedDict):
           previous :meth:`uniquify` attempts. It just re-runs everything and
           clobbers any existing results for the specified value of `epsilon`.
 
+        .. note:: This method implements a Locality Sensitive Hashing algorithm
+        to aproximate the nearest cluster for each SOAP vector. For their documentation
+        refer to https://falconn-lib.org/.
+
         Args:
             eps (float): similarity scores below this value are considered
               identical. Two actually identical GBs will have a similarity score
               of `0` by this metric, so smaller is more similar.
+            threads (int): the number of threads desired to setup the
+              Locality Sensitive Hash hash tables. If the number of threads is 0
+              the maximum number of available hardware threads found will be used
+              up to the number of hash tables 10. 0 is selected by default.
+            probes (int): the number of probes each query will make over all the
+              hash tables. (The higher number of probes the more accurate the search,
+              but the longer it will take [Needs Verification]).
 
         Returns:
             dict: with keys `U` and `GBs`. The `U` key has a dictionary of
@@ -365,12 +379,21 @@ class GrainBoundaryCollection(OrderedDict):
             with self.P[gbid] as NP:
                 self._uniquify(NP, gbid, U, eps)
 
-        #Now that we have the full list of unique environments, go through a
-        #second time and classify every vector in each GB.
+        #Create the hash tables and the query object needed for the LSH algorithm
         used = {k: False for k in U}
+        import falconn
+        params = falconn.get_default_parameters(len(U), len(self.seed))
+        params.num_setup_threads = threads
+        table = falconn.LSHIndex(params)
+        table.setup(np.vstack(U.values()))
+        query = table.construct_query_object()
+        query.set_num_probes(probes)
+
+        #With the alogrithm setup loop through all the vectors to find its
+        #approximate nearest unique neighbor
         for gbid in tqdm(self.gbfiles):
             with self.P[gbid] as NP:
-                LAEs = self._classify(NP, gbid, U, eps, used)
+                LAEs = self._classify(NP, gbid, U, query, used)
                 result["GBs"][gbid] = LAEs
 
         #Now, remove any LAEs from U that didn't get used. We shouldn't really
@@ -423,39 +446,21 @@ class GrainBoundaryCollection(OrderedDict):
                 #deletes the original array
                 uni[(gbid, i)] = np.copy(Pv)
 
-    def _classify(self, NP, PID, uni, eps, used):
-        """Runs through the collection a second time to reclassify each
-        environment according to the most-similar unique LAE identified in
-        :meth:`_uniquify`.
+    def _classify(self, NP, PID, uni, query, used):
+        """Runs through the collection a second time to find the aproximate nearest
+        unique LAE identified in :meth:`_uniquify`.
         """
         from gblearn.soap import S
         result = {}
 
+        for u in uni:
+            result[u] = [u]
+
         for i in range(len(NP)):
             Pv = NP[i,:]
-            K0 = 1.0 #Lowest similarity kernel among all unique vectors.
-            U0 = None #Key of the environment corresponding to K0
-
-            for u, uP in uni.items():
-                if u not in result:
-                    result[u] = [u]
-                K = S(Pv, uP)
-
-                if K < eps:
-                    #These vectors are considered to be equivalent. Store the
-                    #equivalency in the result.
-                    if K < K0:
-                        K0 = K
-                        U0 = u
-
-            if K0 < eps:
-                result[U0].append((PID, i))
-                used[U0] = True
-            else:# pragma: no cover
-                #This is just a catch warning; it should never happen in
-                #practice.
-                wmsg = "There was an unclassifiable SOAP vector: {}"
-                msg.warn(wmsg.format((PID, i)))
+            neighbor = uni.keys()[query.find_nearest_neighbor(Pv)]
+            result[neighbor].append((PID, i))
+            used[neighbor] = True
 
         return result
 
@@ -481,7 +486,7 @@ class GrainBoundaryCollection(OrderedDict):
 
         return result
 
-    def LER(self, eps):
+    def LER(self, eps, **kwargs):
         """Produces the LAE fingerprint for each GB in the system. The LAE
         figerprint is the percentage of the GBs local environments that belong to
         each unique LAE type.
@@ -489,6 +494,8 @@ class GrainBoundaryCollection(OrderedDict):
         Args:
             eps (float): cutoff value for deciding whether two vectors are
               unique.
+            kwargs (dict): used to pass the desired parameters to the
+              Locality Sensitive Hashing algorithm used in :meth:`uniquify`.
 
         Returns:
             numpy.ndarray: rows represent GBs; columns are the percentage of unique
@@ -500,7 +507,7 @@ class GrainBoundaryCollection(OrderedDict):
             result = LER[eps]
 
         if result is None:
-            U = self.U(eps)
+            U = self.U(eps, **kwargs)
 
             #Next, loop over each GB and count how many of each kind it has.
             result = np.zeros((len(self), len(U["U"])))
