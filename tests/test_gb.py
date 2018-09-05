@@ -124,9 +124,9 @@ def test_gbscatter(GBCol):
 
     GBCol.scatter()
     for gbid in GBCol:
-            with GBCol.Scatter[gbid] as stored:
-                model = np.arange(10)
-                assert np.allclose(stored, model)
+        with GBCol.Scatter[gbid] as stored:
+            model = np.arange(10)
+            assert np.allclose(stored, model)
 
     #Make sure it doesn't recompute if they're all there.
     assert GBCol.scatter() is GBCol.Scatter

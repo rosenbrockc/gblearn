@@ -150,6 +150,7 @@ class GrainBoundaryCollection(OrderedDict):
         with open(filename) as f:
             for line in f:
                 if iskip < skip:# pragma: no cover
+                    iskip += 1
                     continue
 
                 if delimiter is None:
@@ -297,6 +298,9 @@ class GrainBoundaryCollection(OrderedDict):
         """Returns the uniquified set of environments for the GB collection and
         current `soapargs`.
 
+        .. note:: This method also assigns and adds the LAE number to each atom in
+        each grain boundary in the collection
+
         Args:
             eps (float): similarity threshlod parameter.
         """
@@ -319,6 +323,8 @@ class GrainBoundaryCollection(OrderedDict):
             for u, elist in LAEs.items():
                 for PID, VID in elist[1:]:
                     self[gbid].LAEs[VID] = u
+            LAE = [result["U"].keys().index(x) for x in self[gbid].LAEs]
+            self[gbid].atoms.add_property("LAE",LAE)
 
         return result
 
@@ -539,6 +545,9 @@ class GrainBoundaryCollection(OrderedDict):
     def importance(self, eps, model):
         """Calculates the feature importances based on the specified XGBoost
         model.
+
+        .. note:: The model needs to have been fitted to the data before
+          calling this method
 
         Args:
             eps (float): `eps` value used in finding the set of unique LAEs in
@@ -764,7 +773,15 @@ class GrainBoundary(object):
             cache (bool): when True, cache the resulting Scatter vector.
         """
         if self.Scatter is None:
+            import os
+            tempfile = 'temp.xyz'
+            self.save_xyz(tempfile)
+            filepath = os.path.abspath(os.path.expanduser(tempfile))
             Scatter = np.arange(10)
+            assert os.path.isfile(filepath)
+            os.remove(filepath)
+            assert os.path.isfile(filepath + '.idx')
+            os.remove(filepath + '.idx')
 
             if cache:
                 self.Scatter = Scatter
