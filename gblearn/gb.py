@@ -251,6 +251,7 @@ class GrainBoundaryCollection(OrderedDict):
             #No need to recompute if the store has the result.
             return Scatter
 
+        import SNET
         for gbid, gb in tqdm(self.items()):
             Scatter[gbid] = gb.scatter(cache=False)
 
@@ -772,17 +773,10 @@ class GrainBoundary(object):
         Args:
             cache (bool): when True, cache the resulting Scatter vector.
         """
-        if self.Scatter is None:
-            import os
-            tempfile = 'temp.xyz'
-            self.save_xyz(tempfile)
-            filepath = os.path.abspath(os.path.expanduser(tempfile))
-            Scatter = np.arange(10)
-            assert os.path.isfile(filepath)
-            os.remove(filepath)
-            assert os.path.isfile(filepath + '.idx')
-            os.remove(filepath + '.idx')
 
+        if self.Scatter is None:
+            atoms = self.atoms
+            Scatter = scat_features(atoms.get_positions(), atoms.get_atomic_numbers())
             if cache:
                 self.Scatter = Scatter
             else:
