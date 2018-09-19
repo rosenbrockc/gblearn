@@ -182,7 +182,7 @@ class Timestep(object):
 
         Args:
             Z (int or list): element code(s) for the atomic species.
-            method (str): one of ['median', 'cna', 'cna_z', 'cna_y', 'cna_x'].
+            method (str): one of ['median', 'cna', 'cna_z', 'cna_x', 'cna_y'].
             pattr (str): name of an attribute in :attr:`extras` to pass as the
               selection parameter of the routine.
             extras (bool): when True, include extra attributes in the new GB
