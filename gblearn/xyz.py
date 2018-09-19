@@ -113,7 +113,9 @@ class XYZParser(object):
         methmap = {
             "median": sel.median,
             "cna": partial(sel.cna_max, coord=0),
-            "cna_z": partial(sel.cna_max, coord=2)
+            "cna_z": partial(sel.cna_max, coord=2),
+            "cna_y": partial(sel.cna_max, coord=1),
+            "cna_x": partial(sel.cna_max, coord=0)
             }
         if method in methmap:
             extra = getattr(self, pattr) if pattr is not None else None
