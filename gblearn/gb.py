@@ -188,7 +188,7 @@ class GrainBoundaryCollection(OrderedDict):
 
         msg.info("Found {} grain boundaries.".format(len(self.gbfiles)))
 
-    def load(self, parser=None, autotrim=True, **kwargs):
+    def load(self, parser=None, autotrim=True, custids=None, **kwargs):
         """Loads the GBs from their files to create :class:`GrainBoundary`
         objects.
 
@@ -202,6 +202,14 @@ class GrainBoundaryCollection(OrderedDict):
             parser: object used to parse the raw GB file. Defaults to
               :class:`gblearn.lammps.Timestep`. Class should have a method `gb`
               that constructs a :class:`GrainBoundary` instance.
+            autotrim (bool): when True and the SOAP matrices have already been
+              calculated, autotrim the GBs to include only those atoms in the GB
+              and *not* the padding around them (needed for complete local
+              environments).
+            custids (dict or str): if `dict`, keys are `str` GB ids and values
+              are the custom selection method to use. If `str`, then a TSV file
+              where the first column is GB id and the second is the custom
+              selection method to use.
             kwargs (dict): keyword arguments passed to the `gb` method of
              `parser`. For example, see :meth:`gblearn.lammps.Timestep.gb`.
         """
@@ -211,8 +219,14 @@ class GrainBoundaryCollection(OrderedDict):
         kwargs["soapargs"] = self.soapargs
         kwargs["padding"] = self.soapargs["rcut"]*2
 
+        if custids is not None and isinstance(custids, six.string_types):
+            rawids = np.loadtxt(custids, dtype=str).tolist()
+            custids = {g: m for g, m in enumerate(rawids)}
+        
         for gbid, gbpath in tqdm(self.gbfiles.items()):
             t = parser(gbpath)
+            if custids is not None and gbid in custids:
+                kwargs["method"] = custids[gbid]
             gb = t.gb(**kwargs)
             self[gbid] = gb
 
@@ -320,7 +334,7 @@ class GrainBoundaryCollection(OrderedDict):
 	#particular atom the corresponding unique signature. Note that
 	#each unique signature atom list has the unique signature as the
 	#first element, which is why the range starts at 1.
-    #This also populates the atoms objects with their corresponding LAE numbers
+        #This also populates the atoms objects with their corresponding LAE numbers
         for gbid in self.gbfiles:
             LAEs = result["GBs"][gbid]
             for u, elist in LAEs.items():
@@ -416,7 +430,7 @@ class GrainBoundaryCollection(OrderedDict):
         the unique SOAP vectors in the given GB relative to the current set of
         unique ones.
 
-        .. note:: This version was includes refactoring by Jonathan Priedemann.
+        .. note:: This version includes refactoring by Jonathan Priedemann.
 
         Args:
             NP (numpy.ndarray): matrix of SOAP vectors for the grain boundary.
