@@ -1,5 +1,10 @@
 # `gblearn` Revision History
 
+## Revision 0.3
+
+- Implemented Locality Sensitive Hashing algorithm to speed up
+  uniquify in LER construction.
+
 ## Revision 0.0.4
 
 - Refactored the LAMMPS read/write routines for dump files.
