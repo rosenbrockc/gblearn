@@ -219,3 +219,32 @@ def test_LER(GBCol):
 
     #Make sure it doesen't recompute if they are already there
     assert GBCol.LER(eps) is GBCol.store.LER[eps]
+
+def test_LAE(GBCol):
+    """Tests the LAE property
+    """
+    #Speed up the test by pre-loading the SOAP matrices and the unique vectors
+    N = _preload_soap(GBCol)
+    eps = 0.002500
+    _preload_U(GBCol, eps)
+
+    #Check that the LAE property gives the correct SOAP vector related to it
+    U = GBCol.U(eps)
+    for lae, soap in enumerate(U["U"].values()):
+        assert np.allclose(GBCol.LAE[lae].soap, soap)
+
+def test_others(GBCol):
+    """Tests parsing and analyzing of Grain Boundaries outside the
+        original collection
+    """
+
+    N = _preload_soap(GBCol)
+    eps = 0.002500
+    #We also want to pre-load the unique vectors.
+    _preload_U(GBCol, eps)
+    seed = np.loadtxt(path.join(reporoot, "tests", "elements", "Ni.pissnnl_seed.txt"))
+    GBCol.seed = seed
+    GBCol.load(name="other", fname='ni.p453.out', Z=28, method="cna_z", pattr="c_cna")
+    LER = GBCol.analyze_other("other", eps=eps)
+    model = np.load(path.join(reporoot, "tests", "unique", "LER.pkl"))
+    assert np.allclose(LER, model[0, :])
