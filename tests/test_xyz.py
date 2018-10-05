@@ -22,7 +22,7 @@ def GBColXYZ(tmpdir):
 
     from gblearn.gb import GrainBoundary
     from gblearn.xyz import XYZParser
-    result.load(XYZParser, Z=26, method="cna_z", pattr="cna", cna_val=3)
+    result.load(parser=XYZParser, Z=26, method="cna_z", pattr="cna", cna_val=3)
     for gbid, gb in result.items():
         assert isinstance(gb, GrainBoundary)
 

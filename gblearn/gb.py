@@ -2,7 +2,7 @@
 """
 import numpy as np
 from collections import OrderedDict
-from gblearn import msg
+from gblearn import msg, lae
 from os import path
 from tqdm import tqdm
 tqdm.monitor_interval = 0
@@ -56,6 +56,9 @@ class GrainBoundaryCollection(OrderedDict):
         soapargs (dict): key-value pairs for constructing the SOAP descriptor.
         properties (dict): keys are property names, values are `dict` keyed by
           `gbid` with values being the property value for each GB.
+        LAE (dict): keys are int values corresponding LAE id, and the values are
+            LAE objects corresponding to the id.
+        others (dict): keys are ids while values are Grain Boundary objects
     """
     def __init__(self, name, root, store=None, rxgbid=None, sortkey=None,
                  reverse=False, seed=None, **soapargs):
@@ -77,6 +80,8 @@ class GrainBoundaryCollection(OrderedDict):
         self.unique = {}
         self.equivalent = {}
         self.properties = {}
+        self.LAE = {}
+        self.others = {}
         self.seed = seed
         self.soapargs = soapargs
 
@@ -188,7 +193,7 @@ class GrainBoundaryCollection(OrderedDict):
 
         msg.info("Found {} grain boundaries.".format(len(self.gbfiles)))
 
-    def load(self, parser=None, autotrim=True, **kwargs):
+    def load(self, parser=None, autotrim=True, name=None, fname=None, **kwargs):
         """Loads the GBs from their files to create :class:`GrainBoundary`
         objects.
 
@@ -198,10 +203,16 @@ class GrainBoundaryCollection(OrderedDict):
           :class:`GrainBoundary` instances, in the sorted order that they were
           discovered.
 
+        .. warning:: if name is given, fname must also be given and the result
+            will be loaded into the others dictionary
+
         Args:
             parser: object used to parse the raw GB file. Defaults to
               :class:`gblearn.lammps.Timestep`. Class should have a method `gb`
               that constructs a :class:`GrainBoundary` instance.
+            name (string): id of external grain boundary to add to others dict
+            fname (string): filename to the grain boundary file
+                    .. warning:: the filename automatically adds the root path
             kwargs (dict): keyword arguments passed to the `gb` method of
              `parser`. For example, see :meth:`gblearn.lammps.Timestep.gb`.
         """
@@ -211,13 +222,24 @@ class GrainBoundaryCollection(OrderedDict):
         kwargs["soapargs"] = self.soapargs
         kwargs["padding"] = self.soapargs["rcut"]*2
 
+        if name is not None:
+            if fname is None:
+                raise ValueError("fname must not be none if name is not none")
+            gbpath = path.join(self.root, fname)
+            self.others[name] = self._parse_gb(gbpath, parser, **kwargs)
+            return
+
         for gbid, gbpath in tqdm(self.gbfiles.items()):
-            t = parser(gbpath)
-            gb = t.gb(**kwargs)
-            self[gbid] = gb
+            self[gbid] = self._parse_gb(gbpath, parser, **kwargs)
 
         if autotrim and len(self.store.P) > 0: # pragma: no cover
             self.trim()
+
+    def _parse_gb(self, gbpath, parser, **kwargs):
+        """Parses a given file into a :class: `GrainBoundary` object
+        """
+        t = parser(gbpath)
+        return t.gb(**kwargs)
 
     def trim(self):
         """Removes the atoms from each grain boundary that were included as
@@ -317,22 +339,33 @@ class GrainBoundaryCollection(OrderedDict):
             U[eps] = result
             self.store.U = U
 
-	#Just grab the atom ids from each list and then assign that
-	#particular atom the corresponding unique signature. Note that
-	#each unique signature atom list has the unique signature as the
-	#first element, which is why the range starts at 1.
-    #This also populates the atoms objects with their corresponding LAE numbers
         for gbid in self.gbfiles:
             LAEs = result["GBs"][gbid]
-            for u, elist in LAEs.items():
-                for PID, VID in elist[1:]:
-                    self[gbid].LAEs[VID] = u
-            LAE = [result["U"].keys().index(x) for x in self[gbid].LAEs]
-            self[gbid].atoms.add_property("LAE",LAE)
+            self._assign(self[gbid], LAEs, result["U"])
+
+    #Fills the GrainBoundaryCollection LAE property with the LAEs
+        for id, soap in enumerate(result["U"].values()):
+            self.LAE[id] = lae.LAE(id, soap)
 
         return result
 
-    def uniquify(self, eps, threads=0, probes=50):
+    def _assign(self, gb, LAEs, U):
+        """Assigns and fills LAEs for the specified Grain Boundary
+        """
+    	#Just grab the atom ids from each list and then assign that
+	    #particular atom the corresponding unique signature. Note that
+	    #each unique signature atom list has the unique signature as the
+	    #first element, which is why the range starts at 1.
+        #This also populates the atoms objects with their corresponding LAE numbers
+
+        for u, elist in LAEs.items():
+            for PID, VID in elist[1:]:
+                gb.LAEs[VID] = u
+        LAE = [U.keys().index(x) for x in gb.LAEs]
+        gb.atoms.add_property("LAE",LAE)
+
+
+    def uniquify(self, eps, **kwargs):
         """Extracts all the unique LAEs in the entire GB system using the
         specified `epsilon` similarity value.
 
@@ -348,13 +381,8 @@ class GrainBoundaryCollection(OrderedDict):
             eps (float): similarity scores below this value are considered
               identical. Two actually identical GBs will have a similarity score
               of `0` by this metric, so smaller is more similar.
-            threads (int): the number of threads desired to setup the
-              Locality Sensitive Hash hash tables. If the number of threads is 0
-              the maximum number of available hardware threads found will be used
-              up to the number of hash tables 10. 0 is selected by default.
-            probes (int): the number of probes each query will make over all the
-              hash tables. (The higher number of probes the more accurate the search,
-              but the longer it will take [Needs Verification]).
+            kwargs (dict): Hold the values that are passed falconn to setup the
+             hash tables in :meth:`setup_hash_tables`.
 
         Returns:
             dict: with keys `U` and `GBs`. The `U` key has a dictionary of
@@ -382,13 +410,7 @@ class GrainBoundaryCollection(OrderedDict):
 
         #Create the hash tables and the query object needed for the LSH algorithm
         used = {k: False for k in U}
-        import falconn
-        params = falconn.get_default_parameters(len(U), len(self.seed))
-        params.num_setup_threads = threads
-        table = falconn.LSHIndex(params)
-        table.setup(np.vstack(U.values()))
-        query = table.construct_query_object()
-        query.set_num_probes(probes)
+        query = self.setup_hash_tables(np.vstack(U.values()), **kwargs)
 
         #With the alogrithm setup loop through all the vectors to find its
         #approximate nearest unique neighbor
@@ -411,6 +433,32 @@ class GrainBoundaryCollection(OrderedDict):
         Us = OrderedDict(sorted(K.items(), key=itemgetter(1), reverse=True))
         result["U"] = OrderedDict([(u, U[u]) for u in Us])
         return result
+
+    def setup_hash_tables(self, data, threads=0, probes=50):
+        """Creates hash tables for an efficient approximate nearest neighbor
+        search
+
+        Args:
+            data (numpy.ndarray): matrix where each row is a unique vector
+            threads (int): the number of threads desired to setup the
+                 Locality Sensitive Hash hash tables. If the number of threads is 0
+                 the maximum number of available hardware threads found will be used
+                 up to the number of hash tables 10. 0 is selected by default.
+            probes (int): the number of probes each query will make over all the
+                 hash tables. (The higher number of probes the more accurate the search,
+                 but the longer it will take [Needs Verification]).
+
+        Returns
+            query object from falconn to search the created table.
+        """
+        import falconn
+        params = falconn.get_default_parameters(data.shape[0], len(self.seed))
+        params.num_setup_threads = threads
+        table = falconn.LSHIndex(params)
+        table.setup(data)
+        query = table.construct_query_object()
+        query.set_num_probes(probes)
+        return query
 
     def _uniquify(self, NP, gbid, uni, eps):
         """Runs the first unique identification pass through the collection. Calculates
@@ -447,7 +495,7 @@ class GrainBoundaryCollection(OrderedDict):
                 #deletes the original array
                 uni[(gbid, i)] = np.copy(Pv)
 
-    def _classify(self, NP, PID, uni, query, used):
+    def _classify(self, NP, PID, uni, query, used=None):
         """Runs through the collection a second time to find the aproximate nearest
         unique LAE identified in :meth:`_uniquify`.
         """
@@ -461,7 +509,8 @@ class GrainBoundaryCollection(OrderedDict):
             Pv = NP[i,:]
             neighbor = uni.keys()[query.find_nearest_neighbor(Pv)]
             result[neighbor].append((PID, i))
-            used[neighbor] = True
+            if used is not None:
+                used[neighbor] = True
 
         return result
 
@@ -513,17 +562,73 @@ class GrainBoundaryCollection(OrderedDict):
             #Next, loop over each GB and count how many of each kind it has.
             result = np.zeros((len(self), len(U["U"])))
             for gbi, gbid in enumerate(self):
-                for ui, uid in enumerate(U["U"]):
-                    result[gbi,ui] = self[gbid].LAEs.count(uid)
-                #Normalize by the total number of atoms of each type
-                N = np.sum(result[gbi,:])
-                assert N == len(self[gbid])
-                result[gbi,:] /= N
+                result[gbi] = self._LER(self[gbid], U["U"], False)[:]
 
             LER[eps] = result
             self.store.LER = LER
 
         return result
+
+    def _LER(self, gb, U, cache=True):
+        """Calculates the LER for the specified Grain Boundary
+
+            Args:
+                gb (GrainBoundary): an instance of class:`GrainBoundary` on which to
+                    calculate the LER
+                U (dict): keys are the unique vector ids in the form (gbid, pid),
+                    while the values are the actual unique vectors
+                cache (boolean): set to false if the result should not be cached in memory
+        """
+        result = np.zeros(len(U))
+        for ui, uid in enumerate(U):
+            result[ui] = gb.LAEs.count(uid)
+        #Normalize by the total number of atoms of each type
+        N = np.sum(result[:])
+        assert N == len(gb)
+        result[:] /= N
+        if cache:
+            gb.LER = result
+        return result
+
+
+    def analyze_other(self, name, analysis='LER', **kwargs):
+        """Analyzies the given GB based on the given anlysis argument
+
+        Args:
+            name (string): the id of the grain boundary to analyze, which
+                corresponds to the key of the GB in the others dictionary
+            analysis (string): the analysis desired. This must be from the list
+                (LER).
+
+            Returns:
+                The analysis given by the specified method.
+        """
+        if analysis == 'LER':
+            if 'eps' not in kwargs:
+                raise ValueError("Epsilon is required for LER analysis")
+            return self._other_LER(name, self.others[name], **kwargs)
+
+    def _other_LER(self, name, gb, eps, cache=True, **kwargs):
+        """Analyzies the Given GB based on LER
+
+        gb (GrainBoundary): an instance of class:`GrainBoundary` on which to
+            perform the LER analysis.
+        eps (float): `eps` value used in finding the set of unique LAEs in
+          the GB system.
+        cache (boolean): set to false if the LER should not be stored in the
+            class:`GrainBoundary` object itself as gb.LER
+        kwargs (dict): the arguments sent to meth:`setup_hash_tables`
+
+        """
+        gb.soap()
+        gb.trim()
+        U = self.U(eps)['U']
+
+        query = self.setup_hash_tables(np.vstack(U.values()), **kwargs)
+        LAEs = self._classify(gb.P, name, U, query)
+        self._assign(gb, LAEs, U)
+
+        return self._LER(gb, U)
 
     def feature_map_file(self, eps):
         """Returns the full path to the feature map file.
@@ -615,6 +720,8 @@ class GrainBoundary(object):
           SOAP vector space (which varies with SOAP parameters).
         LAEs (list): of tuple with `(PID, VID)` corresponding to the unique LAE
           number in the collection's global unique set.
+        LER (numpy.ndarray): columns are the percentage of unique
+          local environments of each type in the GB.
     """
     def __init__(self, xyz, types, box, Z, extras=None, selectargs=None,
                  makelat=True, params=None, **soapargs):
@@ -634,6 +741,7 @@ class GrainBoundary(object):
         self.calculator = SOAPCalculator(**soapargs)
         self.Z = Z
         self.LAEs = None
+        self.LER = None
 
         #For the selection, if padding is present in the dictionary, reduce the
         #padding by half so that all the atoms at the GB get a full SOAP
