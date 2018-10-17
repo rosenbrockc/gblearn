@@ -193,12 +193,8 @@ class GrainBoundaryCollection(OrderedDict):
 
         msg.info("Found {} grain boundaries.".format(len(self.gbfiles)))
 
-<<<<<<< HEAD
-    def load(self, parser=None, autotrim=True, name=None, fname=None, **kwargs):
-=======
     def load(self, parser=None, autotrim=True, custids=None,
              **selectargs):
->>>>>>> upstream/radar
         """Loads the GBs from their files to create :class:`GrainBoundary`
         objects.
 
@@ -215,13 +211,6 @@ class GrainBoundaryCollection(OrderedDict):
             parser: object used to parse the raw GB file. Defaults to
               :class:`gblearn.lammps.Timestep`. Class should have a method `gb`
               that constructs a :class:`GrainBoundary` instance.
-<<<<<<< HEAD
-            name (string): id of external grain boundary to add to others dict
-            fname (string): filename to the grain boundary file
-                    .. warning:: the filename automatically adds the root path
-            kwargs (dict): keyword arguments passed to the `gb` method of
-             `parser`. For example, see :meth:`gblearn.lammps.Timestep.gb`.
-=======
             autotrim (bool): when True and the SOAP matrices have already been
               calculated, autotrim the GBs to include only those atoms in the GB
               and *not* the padding around them (needed for complete local
@@ -232,23 +221,11 @@ class GrainBoundaryCollection(OrderedDict):
               selection method to use.
             selectargs (dict): keyword arguments passed to `parser` when
               isolating grain boundary atoms.
->>>>>>> upstream/radar
         """
         if parser is None:
             from gblearn.lammps import Timestep
             parser = Timestep
 
-<<<<<<< HEAD
-        if name is not None:
-            if fname is None:
-                raise ValueError("fname must not be none if name is not none")
-            gbpath = path.join(self.root, fname)
-            self.others[name] = self._parse_gb(gbpath, parser, **kwargs)
-            return
-
-        for gbid, gbpath in tqdm(self.gbfiles.items()):
-            self[gbid] = self._parse_gb(gbpath, parser, **kwargs)
-=======
         if custids is not None and isinstance(custids, six.string_types):
             rawids = np.loadtxt(custids, dtype=str).tolist()
             custids = {g: m for g, m in enumerate(rawids)}
@@ -259,7 +236,6 @@ class GrainBoundaryCollection(OrderedDict):
                 selectargs["method"] = custids[gbid]
             gb = t.gb(padding=self.padding, **selectargs)
             self[gbid] = gb
->>>>>>> upstream/radar
 
         if autotrim and len(self.store.P) > 0: # pragma: no cover
             self.trim()
@@ -374,14 +350,6 @@ class GrainBoundaryCollection(OrderedDict):
             U[eps] = result
             self.store.U = U
 
-<<<<<<< HEAD
-=======
-	#Just grab the atom ids from each list and then assign that
-	#particular atom the corresponding unique signature. Note that
-	#each unique signature atom list has the unique signature as the
-	#first element, which is why the range starts at 1.
-        #This also populates the atoms objects with their corresponding LAE numbers
->>>>>>> upstream/radar
         for gbid in self.gbfiles:
             LAEs = result["GBs"][gbid]
             self._assign(self[gbid], LAEs, result["U"])
