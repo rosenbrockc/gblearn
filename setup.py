@@ -18,7 +18,7 @@ except ImportError:
 
 from os import path
 setup(name='gblearn',
-      version='0.2.1',
+      version='0.3',
       description='Machine learning grain boundary properties and structure.',
       long_description= "" if not path.isfile("README.md") else read_md('README.md'),
       author='Conrad W Rosenbrock',
@@ -32,7 +32,8 @@ setup(name='gblearn',
           "termcolor",
           "numpy",
           "matplotlib",
-          "tqdm"
+          "tqdm",
+          "falconn"
       ],
       packages=['gblearn'],
       scripts=[],

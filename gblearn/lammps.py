@@ -27,23 +27,23 @@ def make_lattice(box):
 	# zlo_bound zhi_bound yz
 	#
 	# whereas we need xlo, xhi, etc. not xlo_bound, xhi_bound, etc.
-	xlo = box[0][0] - min(0.0, box[0][2], box[1][2], box[0][2] + box[1][2])
-	xhi = box[0][1] - max(0.0, box[0][2], box[1][2], box[0][2] + box[1][2])
-	ylo = box[1][0] - min(0.0, box[2][2])
-	yhi = box[1][1] - max(0.0, box[2][2])
-	zlo = box[2][0]
-	zhi = box[2][1]
-
-	a = (xhi - xlo)
-	b = np.sqrt((yhi - ylo)**2 + (box[0][2])**2)
-	c = np.sqrt((zhi - zlo)**2 + (box[1][2])**2 + (box[2][2])**2)
-	alpha = np.arccos((box[0][2] * box[1][2] + (yhi - ylo) * box[2][2]) / (b * c))
-	beta = np.arccos(box[1][2] / c)
-	gamma = np.arccos(box[0][2] / b)
-	return make_lattice(a, b, c, alpha, beta, gamma)
+        xlo = box[0][0] - min(0.0, box[0][2], box[1][2], box[0][2] + box[1][2])
+        xhi = box[0][1] - max(0.0, box[0][2], box[1][2], box[0][2] + box[1][2])
+        ylo = box[1][0] - min(0.0, box[2][2])
+        yhi = box[1][1] - max(0.0, box[2][2])
+        zlo = box[2][0]
+        zhi = box[2][1]
+        
+        a = (xhi - xlo)
+        b = np.sqrt((yhi - ylo)**2 + (box[0][2])**2)
+        c = np.sqrt((zhi - zlo)**2 + (box[1][2])**2 + (box[2][2])**2)
+        alpha = np.arccos((box[0][2] * box[1][2] + (yhi - ylo) * box[2][2]) / (b * c))
+        beta = np.arccos(box[1][2] / c)
+        gamma = np.arccos(box[0][2] / b)
+        return make_lattice(a, b, c, alpha, beta, gamma)
 
     elif box.shape == (3, 2):
-	return make_lattice(box[0][1] - box[0][0],
+        return make_lattice(box[0][1] - box[0][0],
                             box[1][1] - box[1][0],
                             box[2][1] - box[2][0])
     else:
@@ -176,20 +176,20 @@ class Timestep(object):
                 np.allclose(self.box, other.box) and
                 self.periodic == other.periodic)
 
-    def gb(self, Z=None, method="median", pattr="c_csd", extras=True, soapargs={},
-           **kwargs):
+    def gb(self, Z=None, method="median", pattr="c_csd", extras=True, padding=5.,
+           **selectargs):
         """Returns the grain boundary for this time step.
 
         Args:
             Z (int or list): element code(s) for the atomic species.
-            method (str): one of ['median', 'cna', 'cna_z'].
+            method (str): one of ['median', 'cna', 'cna_z', 'cna_x', 'cna_y'].
             pattr (str): name of an attribute in :attr:`extras` to pass as the
               selection parameter of the routine.
             extras (bool): when True, include extra attributes in the new GB
               structure.
-            soapargs (dict): initialization parameters for the
-              :class:`gblearn.soap.SOAPCalculator` instance for the GB.
-            kwargs (dict): additional arguments passed to the atom selection
+            padding (float): amount of perfect bulk to include as padding around
+              the grain boundary before the representation is made.
+            selectargs (dict): additional arguments passed to the atom selection
               function. For `median`, see :func:`gblearn.selection.median` for the
               arguments. For `cna*` see :func:`gblearn.selection.cna_max`.
 
@@ -202,13 +202,13 @@ class Timestep(object):
                              ":class:`GrainBoundary` instance.")
 
         from gblearn.gb import GrainBoundary
-        selectargs = {
+        selargs = {
             "method": method,
             "pattr": pattr
         }
-        selectargs.update(kwargs)
+        selargs.update(kwargs)
 
-        ids = self.gbids(**selectargs)
+        ids = self.gbids(**selargs)
 
         if extras:
             x = {k: getattr(self, k)[ids] for k in self.extras}
@@ -216,7 +216,7 @@ class Timestep(object):
             x = None
         result = GrainBoundary(self.xyz[ids,:], self.types[ids],
                                self.box, Z, extras=x,
-                               selectargs=selectargs, **soapargs)
+                               selectargs=selargs, padding=padding)
         return result
 
     def gbids(self, method="median", pattr=None, **kwargs):
@@ -224,7 +224,7 @@ class Timestep(object):
         boundary.
 
         Args:
-            method (str): one of ['median', 'cna', 'cna_z'].
+            method (str): one of ['median', 'cna', 'cna_z', 'cna_y', 'cna_x'].
             pattr (str): name of an attribute in :attr:`extras` to pass as the
               selection parameter of the routine.
             kwargs (dict): additional arguments passed to the atom selection
@@ -249,7 +249,9 @@ class Timestep(object):
         methmap = {
             "median": sel.median,
             "cna": partial(sel.cna_max, coord=0),
-            "cna_z": partial(sel.cna_max, coord=2)
+            "cna_z": partial(sel.cna_max, coord=2),
+            "cna_y": partial(sel.cna_max, coord=1),
+            "cna_x": partial(sel.cna_max, coord=0)
             }
         if method in methmap:
             extra = getattr(self, pattr) if pattr is not None else None
@@ -407,14 +409,14 @@ class Timestep(object):
 
 		    # Changes by JPRIEDS to accommodate triclinic boxes
 		    # Written 170719
-		    if len(result["periodic"]) == 6:
-			itemstack.extend([(float, float, float)]*3)
-			current = "box"
-			result["periodic"] = result["periodic"][3:]
-		    elif len(result["periodic"]) == 3:
-			itemstack.extend([(float, float)]*3)
-			current = "box"
-		    else:# pragma: no cover
+                    if len(result["periodic"]) == 6:
+                        itemstack.extend([(float, float, float)]*3)
+                        current = "box"
+                        result["periodic"] = result["periodic"][3:]
+                    elif len(result["periodic"]) == 3:
+                        itemstack.extend([(float, float)]*3)
+                        current = "box"
+                    else:# pragma: no cover
                         emsg = "Could not classify periodic bounds: {}"
                         raise ValueError(emsg.format(result["periodic"]))
                 elif "ITEM: ATOMS" in line:
