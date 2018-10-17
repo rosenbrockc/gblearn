@@ -54,12 +54,14 @@ class GrainBoundaryCollection(OrderedDict):
           values are a `dict` having linked keys with :attr:`unique` and values
           a list of `aid` in the GB whose LAEs that are equivalent to the unique
           LAE represented by the key.
-        soapargs (dict): key-value pairs for constructing the SOAP descriptor.
+        repargs (dict): keys are the representation name, while the values are
+          the parameters for the
         properties (dict): keys are property names, values are `dict` keyed by
           `gbid` with values being the property value for each GB.
         LAE (dict): keys are int values corresponding LAE id, and the values are
-            LAE objects corresponding to the id.
-        others (dict): keys are ids while values are Grain Boundary objects
+          LAE objects corresponding to the id.
+        others (dict): keys are ids while values are Grain Boundary objects not
+           belonging to the original collection.
     """
     def __init__(self, name, root, store=None, rxgbid=None, sortkey=None,
                  reverse=False, seed=None, padding=5.):
@@ -83,6 +85,7 @@ class GrainBoundaryCollection(OrderedDict):
         self.properties = {}
         self.repargs = {}
         self.seed = seed
+        self.others = {}
 
         if rxgbid is not None:
             import re
@@ -193,8 +196,8 @@ class GrainBoundaryCollection(OrderedDict):
 
         msg.info("Found {} grain boundaries.".format(len(self.gbfiles)))
 
-    def load(self, parser=None, autotrim=True, custids=None,
-             **selectargs):
+    def load(self, parser=None, autotrim=True, custids=None, name=None,
+             fname=None, **selectargs):
         """Loads the GBs from their files to create :class:`GrainBoundary`
         objects.
 
@@ -219,6 +222,9 @@ class GrainBoundaryCollection(OrderedDict):
               are the custom selection method to use. If `str`, then a TSV file
               where the first column is GB id and the second is the custom
               selection method to use.
+            name (str): unique id of external grain boundary
+            fname (str): filenme to the grain boundary file
+                    ..warning:: the filenmae automattically adds the root path
             selectargs (dict): keyword arguments passed to `parser` when
               isolating grain boundary atoms.
         """
@@ -230,21 +236,27 @@ class GrainBoundaryCollection(OrderedDict):
             rawids = np.loadtxt(custids, dtype=str).tolist()
             custids = {g: m for g, m in enumerate(rawids)}
 
+        if fname is not None:
+            if name is None:
+                print("Name not specified, using {} as unique identifier".format(fname))
+                name = fname
+            gbpath = path.join(self.root, fname)
+            self.others[name] = self._parse_gb(gbpath, parser, **selectargs)
+            return
+
         for gbid, gbpath in tqdm(self.gbfiles.items()):
-            t = parser(gbpath)
             if custids is not None and gbid in custids:
                 selectargs["method"] = custids[gbid]
-            gb = t.gb(padding=self.padding, **selectargs)
-            self[gbid] = gb
+            self[gbid] = _parse_gb(gbpath, parser, **selectargs)
 
         if autotrim and len(self.store.P) > 0: # pragma: no cover
             self.trim()
 
-    def _parse_gb(self, gbpath, parser, **kwargs):
+    def _parse_gb(self, gbpath, parser, **selectargs):
         """Parses a given file into a :class: `GrainBoundary` object
         """
         t = parser(gbpath)
-        return t.gb(**kwargs)
+        return t.gb(padding=self.padding, **selectkwargs)
 
     def trim(self):
         """Removes the atoms from each grain boundary that were included as
