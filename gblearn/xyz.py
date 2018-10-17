@@ -33,8 +33,8 @@ class XYZParser(object):
     def __len__(self):
         return self.atoms.n
 
-    def gb(self, Z=None, method="median", pattr="c_csd", extras=True, soapargs={},
-           **kwargs):
+    def gb(self, Z=None, method="median", pattr="c_csd", extras=True, padding=5.,
+           **selectargs):
         """Returns the grain boundary for this XYZ file.
 
         Args:
@@ -44,9 +44,7 @@ class XYZParser(object):
               selection parameter of the routine.
             extras (bool): when True, include extra attributes in the new GB
               structure.
-            soapargs (dict): initialization parameters for the
-              :class:`gblearn.soap.SOAPCalculator` instance for the GB.
-            kwargs (dict): additional arguments passed to the atom selection
+            selectargs (dict): additional arguments passed to the atom selection
               function. For `median`, see :func:`gblearn.selection.median` for the
               arguments. For `cna*` see :func:`gblearn.selection.cna_max`.
 
@@ -59,13 +57,13 @@ class XYZParser(object):
                              ":class:`GrainBoundary` instance.")
 
         from gblearn.gb import GrainBoundary
-        selectargs = {
+        selargs = {
             "method": method,
             "pattr": pattr
         }
-        selectargs.update(kwargs)
+        selargs.update(selectargs)
 
-        ids = self.gbids(**selectargs)
+        ids = self.gbids(**selargs)
 
         if extras:
             x = {k: getattr(self, k)[ids+1] for k in self.extras}
@@ -78,8 +76,8 @@ class XYZParser(object):
 
         result = GrainBoundary(self.xyz[ids,:], types,
                                self.box, Z, extras=x, makelat=False,
-                               selectargs=selectargs, params=self.atoms.params,
-                               **soapargs)
+                               selectargs=selargs, params=self.atoms.params,
+                               padding=padding)
         return result
 
     def gbids(self, method="median", pattr=None, **kwargs):

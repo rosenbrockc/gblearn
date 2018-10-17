@@ -176,8 +176,8 @@ class Timestep(object):
                 np.allclose(self.box, other.box) and
                 self.periodic == other.periodic)
 
-    def gb(self, Z=None, method="median", pattr="c_csd", extras=True, soapargs={},
-           **kwargs):
+    def gb(self, Z=None, method="median", pattr="c_csd", extras=True, padding=5.,
+           **selectargs):
         """Returns the grain boundary for this time step.
 
         Args:
@@ -187,9 +187,9 @@ class Timestep(object):
               selection parameter of the routine.
             extras (bool): when True, include extra attributes in the new GB
               structure.
-            soapargs (dict): initialization parameters for the
-              :class:`gblearn.soap.SOAPCalculator` instance for the GB.
-            kwargs (dict): additional arguments passed to the atom selection
+            padding (float): amount of perfect bulk to include as padding around
+              the grain boundary before the representation is made.
+            selectargs (dict): additional arguments passed to the atom selection
               function. For `median`, see :func:`gblearn.selection.median` for the
               arguments. For `cna*` see :func:`gblearn.selection.cna_max`.
 
@@ -202,13 +202,13 @@ class Timestep(object):
                              ":class:`GrainBoundary` instance.")
 
         from gblearn.gb import GrainBoundary
-        selectargs = {
+        selargs = {
             "method": method,
             "pattr": pattr
         }
-        selectargs.update(kwargs)
+        selargs.update(kwargs)
 
-        ids = self.gbids(**selectargs)
+        ids = self.gbids(**selargs)
 
         if extras:
             x = {k: getattr(self, k)[ids] for k in self.extras}
@@ -216,7 +216,7 @@ class Timestep(object):
             x = None
         result = GrainBoundary(self.xyz[ids,:], self.types[ids],
                                self.box, Z, extras=x,
-                               selectargs=selectargs, **soapargs)
+                               selectargs=selargs, padding=padding)
         return result
 
     def gbids(self, method="median", pattr=None, **kwargs):
