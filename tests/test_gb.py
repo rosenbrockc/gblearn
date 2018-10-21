@@ -75,7 +75,7 @@ def _preload_soap(GBCol):
     """
     GBCol.restricted = False
     GBCol.repargs["soap"] = {"rcut":3.25, "lmax":12, "nmax":12, "sigma":0.5}
-    GBCol.store.configure("soap", rcut=3.25., lmax=12, nmax=12, sigma=0.5)
+    GBCol.store.configure("soap", rcut=3.25, lmax=12, nmax=12, sigma=0.5)
     GBCol.store.restricted = False
     GBCol.store.P.restricted = False
 
