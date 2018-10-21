@@ -2,6 +2,7 @@
 """
 import numpy as np
 from gblearn import msg
+from ase.lattice.triclinic import Triclinic
 
 def make_lattice(box):
     """Constructs a lattice array compatible with ASE using the box dimensions
@@ -12,7 +13,6 @@ def make_lattice(box):
           format `lo` `hi`. Shape `(3, 2)`. Also supports tricilinic boxes when
           shape `(3, 3)` is specified.
     """
-    from quippy.atoms import make_lattice
     if box.shape == (3, 3):
 	# http://lammps.sandia.gov/doc/Section_howto.html#howto-12 Describes the
 	# methodology (look for the section entitled "6.12. Triclinic
@@ -33,19 +33,20 @@ def make_lattice(box):
         yhi = box[1][1] - max(0.0, box[2][2])
         zlo = box[2][0]
         zhi = box[2][1]
-        
+
         a = (xhi - xlo)
         b = np.sqrt((yhi - ylo)**2 + (box[0][2])**2)
         c = np.sqrt((zhi - zlo)**2 + (box[1][2])**2 + (box[2][2])**2)
-        alpha = np.arccos((box[0][2] * box[1][2] + (yhi - ylo) * box[2][2]) / (b * c))
-        beta = np.arccos(box[1][2] / c)
-        gamma = np.arccos(box[0][2] / b)
-        return make_lattice(a, b, c, alpha, beta, gamma)
+        rad = 180.0 / np.pi
+        alpha = rad * np.arccos((box[0][2] * box[1][2] + (yhi - ylo) * box[2][2]) / (b * c))
+        beta = rad * np.arccos(box[1][2] / c)
+        gamma = rad * np.arccos(box[0][2] / b)
+        return Triclinic("Ni", latticeconstant=(a, b, c, alpha, beta, gamma)).get_cell().T
 
     elif box.shape == (3, 2):
-        return make_lattice(box[0][1] - box[0][0],
-                            box[1][1] - box[1][0],
-                            box[2][1] - box[2][0])
+        return np.diag([box[0][1] - box[0][0],
+                        box[1][1] - box[1][0],
+                        box[2][1] - box[2][0]])
     else:
         raise ValueError("Unexpected box size/parameters: {}".format(box))
 
@@ -206,7 +207,7 @@ class Timestep(object):
             "method": method,
             "pattr": pattr
         }
-        selargs.update(kwargs)
+        selargs.update(selectargs)
 
         ids = self.gbids(**selargs)
 

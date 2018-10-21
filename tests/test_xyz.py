@@ -18,7 +18,8 @@ def GBColXYZ(tmpdir):
     from gblearn.gb import GrainBoundaryCollection as GBC
     gbpath = path.join(reporoot, "tests", "xyz")
     root = str(tmpdir.join("xyz"))
-    result = GBC("imeall", gbpath, root, r"^(?P<gbid>[_Dud\d]+).xyz$", rcut=3.25, lmax=12, nmax=12, sigma=0.5)
+    result = GBC("imeall", gbpath, root, r"^(?P<gbid>[_Dud\d]+).xyz$")
+    result.store.configure("soap", rcut=3.25, lmax=12, nmax=12, sigma=0.5)
 
     from gblearn.gb import GrainBoundary
     from gblearn.xyz import XYZParser

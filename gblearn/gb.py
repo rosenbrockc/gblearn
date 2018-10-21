@@ -6,7 +6,6 @@ from gblearn import msg, lae
 from os import path
 from tqdm import tqdm
 tqdm.monitor_interval = 0
-from quippy.farray import FortranArray
 
 class GrainBoundaryCollection(OrderedDict):
     """Represents a collection of grain boundaries and the unique environments
@@ -84,6 +83,7 @@ class GrainBoundaryCollection(OrderedDict):
         self.equivalent = {}
         self.properties = {}
         self.repargs = {}
+        self.LAE = {}
         self.seed = seed
         self.others = {}
 
@@ -113,11 +113,7 @@ class GrainBoundaryCollection(OrderedDict):
             scalar = False
             for gb in self.values():
                 if hasattr(gb, name):
-                    vi = getattr(gb, name)
-                    if isinstance(vi, FortranArray):
-                        values.append(np.array(vi.T))
-                    else: # pragma: no cover
-                        values.append(vi)
+                    values.append(getattr(gb, name))
                 elif name in gb.params:
                     values.append(gb.params[name])
                     scalar = True
@@ -196,7 +192,7 @@ class GrainBoundaryCollection(OrderedDict):
 
         msg.info("Found {} grain boundaries.".format(len(self.gbfiles)))
 
-    def load(self, parser=None, autotrim=True, custids=None, name=None,
+    def load(self, parser=None, custids=None, name=None,
              fname=None, **selectargs):
         """Loads the GBs from their files to create :class:`GrainBoundary`
         objects.
@@ -214,10 +210,6 @@ class GrainBoundaryCollection(OrderedDict):
             parser: object used to parse the raw GB file. Defaults to
               :class:`gblearn.lammps.Timestep`. Class should have a method `gb`
               that constructs a :class:`GrainBoundary` instance.
-            autotrim (bool): when True and the SOAP matrices have already been
-              calculated, autotrim the GBs to include only those atoms in the GB
-              and *not* the padding around them (needed for complete local
-              environments).
             custids (dict or str): if `dict`, keys are `str` GB ids and values
               are the custom selection method to use. If `str`, then a TSV file
               where the first column is GB id and the second is the custom
@@ -247,16 +239,13 @@ class GrainBoundaryCollection(OrderedDict):
         for gbid, gbpath in tqdm(self.gbfiles.items()):
             if custids is not None and gbid in custids:
                 selectargs["method"] = custids[gbid]
-            self[gbid] = _parse_gb(gbpath, parser, **selectargs)
-
-        if autotrim and len(self.store.P) > 0: # pragma: no cover
-            self.trim()
+            self[gbid] = self._parse_gb(gbpath, parser, **selectargs)
 
     def _parse_gb(self, gbpath, parser, **selectargs):
         """Parses a given file into a :class: `GrainBoundary` object
         """
         t = parser(gbpath)
-        return t.gb(padding=self.padding, **selectkwargs)
+        return t.gb(padding=self.padding, **selectargs)
 
     def trim(self):
         """Removes the atoms from each grain boundary that were included as
@@ -276,6 +265,8 @@ class GrainBoundaryCollection(OrderedDict):
         P = self.store.P
 
         if len(P) == len(self):
+            if autotrim:
+                self.trim()
             #No need to recompute if the store has the result.
             return P
 
@@ -296,7 +287,6 @@ class GrainBoundaryCollection(OrderedDict):
             #No need to recompute if the store has the result.
             return Scatter
 
-        import SNET
         for gbid, gb in tqdm(self.items()):
             Scatter[gbid] = gb.scatter(cache=False, **scatterargs)
 
@@ -622,6 +612,7 @@ class GrainBoundaryCollection(OrderedDict):
                 corresponds to the key of the GB in the others dictionary
             analysis (string): the analysis desired. This must be from the list
                 (LER).
+            kwargs (dict):
 
             Returns:
                 The analysis given by the specified method.
@@ -634,6 +625,8 @@ class GrainBoundaryCollection(OrderedDict):
     def _other_LER(self, name, gb, eps, cache=True, **kwargs):
         """Analyzies the Given GB based on LER
 
+        .. note: this will automatically use the soap args stored in self
+
         gb (GrainBoundary): an instance of class:`GrainBoundary` on which to
             perform the LER analysis.
         eps (float): `eps` value used in finding the set of unique LAEs in
@@ -643,7 +636,7 @@ class GrainBoundaryCollection(OrderedDict):
         kwargs (dict): the arguments sent to meth:`setup_hash_tables`
 
         """
-        gb.soap()
+        gb.soap(**self.repargs["soap"])
         gb.trim()
         U = self.U(eps)['U']
 
@@ -774,11 +767,7 @@ class GrainBoundary(object):
             self.extras = extras.keys()
             for k, v in extras.items():
                 if not hasattr(self, k):
-                    target = v.copy()
-                    if isinstance(target, FortranArray):
-                        setattr(self, k, v.copy().T)
-                    else:
-                        setattr(self, k, v.copy())
+                    setattr(self, k, v.copy())
                 else:
                     msg.warn("Cannot set extra attribute `{}`; "
                              "already exists.".format(k))
@@ -913,10 +902,10 @@ class GrainBoundary(object):
         Args:
             cache (bool): when True, cache the resulting Scatter vector.
         """
-
+        import SNET
         if self.Scatter is None:
             atoms = self.atoms
-            Scatter = scat_features(atoms.get_positions(), atoms.get_atomic_numbers())
+            Scatter = SNET.scat_features(atoms.get_positions(), atoms.get_atomic_numbers())
             if cache:
                 self.Scatter = Scatter
             else:

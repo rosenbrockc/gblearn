@@ -113,9 +113,9 @@ class ResultStore(object):
     """
     repstr = {
         "soap": ["lmax", "nmax", "rcut"],
-        "scatter": []
+        "scatter": ["Layers", "SPH_L", "n_trans", "n_angle1", "n_angle2"]
     }
-    folders = {
+    reps = {
         "soap": ["P", "U", "ASR", "LER", "features"],
         "scatter": ["Scatter", "heatmaps"]
     }
@@ -123,22 +123,16 @@ class ResultStore(object):
     def __init__(self, gbids, root=None, restricted=True, padding=5.):
         self.root = root
         self.restricted = restricted
+        self.gbids = gbids
         if root is not None:
             self.root = path.abspath(path.expanduser(root))
-            self._check_padding(padding)
             self._make_repdirs()
-            
-        self.gbids = gbids
-        self._is_setup = {}
-        """dict: keys are rep names; values are `bool` indicating whether the
-        folders for the particular rep have been setup.
-        """
-        
+            self._check_padding(padding)
+
         #Set the lazy initializers for each of the representations that we
         #handle.
-        self.cache = {r: {} for r in self.folders}
-        self.repargs = {r: {} for r in self.folders}
-        self._make_repdirs()
+        self.cache = {r: {} for r in self.reps}
+        self.repargs = {r: {} for r in self.reps}
 
     def _check_padding(self, padding):
         """Makes sure that the padding matches the stored value for the grain boundary
@@ -150,11 +144,11 @@ class ResultStore(object):
         """
         padfile = path.join(self.root, "padding.txt")
         if path.isfile(padfile):
-            xpads = np.loadtxt(padfile)[0]
+            xpads = np.loadtxt(padfile)
             assert abs(xpads - padding) < 1e-8
         else:
             np.savetxt(padfile, [padding])
-        
+
     def _make_repdirs(self):
         """Creates any missing directories if the store is not running in
         memory-only mode.
@@ -162,7 +156,9 @@ class ResultStore(object):
         if not path.isdir(self.root):
             mkdir(self.root)
 
-        for rep, dirnames in self.folders.items():
+        self._load_gbids()
+
+        for rep, dirnames in self.reps.items():
             repdir = path.join(self.root, rep)
             if not path.isdir(repdir):
                 mkdir(repdir)
@@ -170,8 +166,8 @@ class ResultStore(object):
                 folder = path.join(repdir, dirname)
                 if not path.isdir(folder):
                     mkdir(folder)
-        
-    def configure(rep, **repargs):
+
+    def configure(self, rep, **repargs):
         """Configures the result store to use the specified representation.
 
         Args:
@@ -190,7 +186,7 @@ class ResultStore(object):
         """Returns the name of the attribute for the representation folder string.
         """
         return "{}str".format(rep)
-        
+
     def _reset_attrs(self, rep):
         """Resets the strings representing the specified `rep`.
         """
@@ -205,7 +201,8 @@ class ResultStore(object):
         pstrs = ["{%d%s}" % (i, pmap[ptype]) for i, ptype in enumerate(ptypes)]
         pvals = [self.repargs[rep][n] for n in self.repstr[rep]]
         setattr(self, attrname, '_'.join(pstrs).format(*pvals))
-        
+        self._clobber_reps()
+
     def _clobber_reps(self):
         """Resets all the cached representation values to `None`.
         """
@@ -278,15 +275,15 @@ class ResultStore(object):
         """Finds which representation the unique `attr` name belongs to.
         """
         result = None
-        for rep, attrs in self.repstr.items():
+        for rep, attrs in self.reps.items():
             if attr in attrs:
                 result = rep
                 break
         else:
-            raise ValueError("Cannot find the representation that {} belongs to.".format(attr))    
-        
+            raise ValueError("Cannot find the representation that {} belongs to.".format(attr))
+
         return result
-        
+
     def _np_get(self, attr):
         """Restores a :class:`numpy.ndarray` based representation collection for
         each GB in the result store.
@@ -306,7 +303,9 @@ class ResultStore(object):
         if self.root is None:
             return {}
 
-        rpath = self.folders[rep][attr]
+        rpath = path.join(self.root, rep, attr)
+        if not hasattr(self, self.repattr(rep)):
+            return {}
         target = path.join(rpath, getattr(self, self.repattr(rep)))
         result = DiskCollection(target, self.gbids, self.restricted)
         self.cache[rep][attr] = result
@@ -333,7 +332,7 @@ class ResultStore(object):
             self.cache[rep][attr] = value
             return
 
-        rpath = self.folders[rep][attr]
+        rpath = path.join(self.root, rep, attr)
         target = path.join(rpath, getattr(self, self.repattr(rep)))
         if not path.isdir(target):# pragma: no cover
             mkdir(target)
@@ -426,7 +425,7 @@ class ResultStore(object):
         from cPickle import load
 
         result = {}
-        rpath = self.folders[rep][attr]
+        rpath = path.join(self.root, rep, attr)
         target = path.join(rpath, getattr(self, self.repattr(rep)))
         if not path.isdir(target):
             return result
@@ -455,12 +454,12 @@ class ResultStore(object):
         if cache is None:
             self.cache[rep][attr] = {}
         self.cache[rep][attr].update(value)
-        
+
         #Handle the memory-only case.
         if self.root is None:
             return
 
-        rpath = self.folders[rep][attr]
+        rpath = path.join(self.root, rep, attr)
         target = path.join(rpath, getattr(self, self.repattr(rep)))
         if not path.isdir(target):
             mkdir(target)
@@ -505,21 +504,22 @@ class ResultStore(object):
         if self.root is None:
             return
 
-        rpath = self.folders[rep][attr]
+        result = None
+        rpath = path.join(self.root, rep, attr)
         target = path.join(rpath, "{}.npy".format(getattr(self, self.repattr(rep))))
         if path.isfile(target):
             result = np.load(target)
-            
+
         self.cache[rep][attr] = result
         return result
-    
+
     def _single_set(self, attr, value):
         rep = self._find_rep(attr)
         self.cache[rep][attr] = value
         if self.root is None:
             return
 
-        rpath = self.folders[rep][attr]
+        rpath = path.join(self.root, rep, attr)
         target = path.join(rpath, "{}.npy".format(getattr(self, self.repattr(rep))))
         if not path.isfile(target):
             np.save(target, value)
