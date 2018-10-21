@@ -80,7 +80,7 @@ class XYZParser(object):
                                padding=padding)
         return result
 
-    def gbids(self, method="median", pattr=None, **kwargs):
+    def gbids(self, method="median", pattr=None, padding=5., **kwargs):
         """Returns the *indices* of the atoms that lie at the grain
         boundary.
 
@@ -89,6 +89,8 @@ class XYZParser(object):
             pattr (str): name of an attribute in :attr:`extras` to pass as the
               selection parameter of the routine.
             cna_val (int): type id of the *perfect crystal*.
+            padding (float): amount of perfect bulk to include as padding around
+              the grain boundary before the representation is made.
             kwargs (dict): additional arguments passed to the atom selection
               function. For `median`, see :func:`gblearn.selection.median` for the
               arguments.
@@ -117,4 +119,4 @@ class XYZParser(object):
             }
         if method in methmap:
             extra = getattr(self, pattr) if pattr is not None else None
-            return methmap[method](self.xyz, extra, types=self.types, **kwargs)
+            return methmap[method](self.xyz, extra, padding=padding, types=self.types, **kwargs)

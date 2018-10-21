@@ -209,7 +209,7 @@ class Timestep(object):
         }
         selargs.update(selectargs)
 
-        ids = self.gbids(**selargs)
+        ids = self.gbids(padding=padding, **selargs)
 
         if extras:
             x = {k: getattr(self, k)[ids] for k in self.extras}
@@ -220,7 +220,7 @@ class Timestep(object):
                                selectargs=selargs, padding=padding)
         return result
 
-    def gbids(self, method="median", pattr=None, **kwargs):
+    def gbids(self, method="median", pattr=None, padding=5., **kwargs):
         """Returns the *indices* of the atoms that lie at the grain
         boundary.
 
@@ -228,6 +228,8 @@ class Timestep(object):
             method (str): one of ['median', 'cna', 'cna_z', 'cna_y', 'cna_x'].
             pattr (str): name of an attribute in :attr:`extras` to pass as the
               selection parameter of the routine.
+            padding (float): amount of perfect bulk to include as padding around
+              the grain boundary before the representation is made.
             kwargs (dict): additional arguments passed to the atom selection
               function. For `median`, see :func:`gblearn.selection.median` for the
               arguments.
@@ -256,7 +258,7 @@ class Timestep(object):
             }
         if method in methmap:
             extra = getattr(self, pattr) if pattr is not None else None
-            return methmap[method](self.xyz, extra, types=self.types, **kwargs)
+            return methmap[method](self.xyz, extra, padding=padding, types=self.types, **kwargs)
 
     def dump(self, filename, mode='a', rebox=False):
         """Dumps the specified structure to file in the LAMMPS format.

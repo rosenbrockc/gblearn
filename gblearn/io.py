@@ -279,7 +279,7 @@ class ResultStore(object):
             if attr in attrs:
                 result = rep
                 break
-        else:
+        else: #pragma: no cover
             raise ValueError("Cannot find the representation that {} belongs to.".format(attr))
 
         return result

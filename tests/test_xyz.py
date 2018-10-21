@@ -18,7 +18,7 @@ def GBColXYZ(tmpdir):
     from gblearn.gb import GrainBoundaryCollection as GBC
     gbpath = path.join(reporoot, "tests", "xyz")
     root = str(tmpdir.join("xyz"))
-    result = GBC("imeall", gbpath, root, r"^(?P<gbid>[_Dud\d]+).xyz$")
+    result = GBC("imeall", gbpath, root, r"^(?P<gbid>[_Dud\d]+).xyz$", padding=6.5)
     result.store.configure("soap", rcut=3.25, lmax=12, nmax=12, sigma=0.5)
 
     from gblearn.gb import GrainBoundary
@@ -63,7 +63,7 @@ def test_xyzproperty(GBColXYZ):
 def test_xyzLER(GBColXYZ):
     """Tests SOAP calculation and LER collections for GB collection made from xyz files
     """
-    GBColXYZ.soap()
+    GBColXYZ.soap(rcut=3.25, lmax=12, nmax=12, sigma=0.5)
     for gbid, gb in GBColXYZ.items():
         with GBColXYZ.P[gbid] as stored:
             assert stored.shape == (len(gb.cna), 1015)

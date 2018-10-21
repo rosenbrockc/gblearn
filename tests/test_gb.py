@@ -242,10 +242,13 @@ def test_others(GBCol):
     eps = 0.002500
     #We also want to pre-load the unique vectors.
     _preload_U(GBCol, eps)
-    import pdb; pdb.set_trace()
     seed = np.loadtxt(path.join(reporoot, "tests", "elements", "Ni.pissnnl_seed.txt"))
     GBCol.seed = seed
     GBCol.load(name="other", fname='ni.p453.out', Z=28, method="cna_z", pattr="c_cna")
     LER = GBCol.analyze_other("other", eps=eps)
     model = np.load(path.join(reporoot, "tests", "unique", "LER.pkl"))
     assert np.allclose(LER, model[0])
+
+    #Test that if no name is given for other, the filename is just used
+    GBCol.load(fname='ni.p454.out', Z=28, method="cna_z", pattr="c_cna")
+    assert "ni.p454.out" in GBCol.others

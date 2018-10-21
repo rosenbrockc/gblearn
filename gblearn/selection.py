@@ -11,7 +11,7 @@ def extent(struct, axis=2):
           ['id', 'type', 'x', 'y', 'z', ...], though as long as `axis` is
           consistent, it doesn't matter.
         axis (int): axis in `struct` along which to find the `min` and
-          `max` extent. 
+          `max` extent.
 
     Returns:
         tuple: of (`float` min, `float` max) structure extent along
@@ -56,7 +56,7 @@ def cna_max(xyz, cna, types=None, cna_val=1, padding=5.0, coord=0, **kwargs):
 
     if len(xvals) == 0:
         raise ValueError("No atoms selected at the grain boundary.")
-    
+
     #Now that we have all atoms that deviate from perfect crystal and
     #are away from the edges, we find the minimum and maximum values
     #and add the desired padding to each.
@@ -64,7 +64,7 @@ def cna_max(xyz, cna, types=None, cna_val=1, padding=5.0, coord=0, **kwargs):
     result = np.where(np.logical_and(xyz[:,coord] >= minx, xyz[:,coord] <= maxx))[0]
     return result
 
-def median(xyz, param, limit_extent=None, tolerance=0.5, width=8., types=None):
+def median(xyz, param, limit_extent=None, tolerance=0.5, width=8., types=None, **kwargs):
     """Returns those atoms that deviate from the median appreciably,
     along a given axis.
 
@@ -89,6 +89,8 @@ def median(xyz, param, limit_extent=None, tolerance=0.5, width=8., types=None):
         types (numpy.ndarray): of crystal types for each atom in the
           crystal. It is included here so that we can use a common
           interface for all selection routines.
+        kwargs (dict): dummy parameter so that selection routines can all accept
+          the same dictionary.
 
     Returns:
         numpy.ndarray: of integer indices in `xyz` that match the filtering
@@ -102,7 +104,7 @@ def median(xyz, param, limit_extent=None, tolerance=0.5, width=8., types=None):
     space = xyz[:,xaxis]
 
     #We determine the median and maximum values of the parameter on
-    #the given axis. 
+    #the given axis.
     mcsd = np.median(param)
     mxcsd = np.max(param)
     dcsd= 10**(np.log10(mcsd) + (np.log10(mxcsd)-np.log10(mcsd))*tolerance)
