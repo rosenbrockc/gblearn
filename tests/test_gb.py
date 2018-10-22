@@ -245,7 +245,7 @@ def test_others(GBCol):
     seed = np.loadtxt(path.join(reporoot, "tests", "elements", "Ni.pissnnl_seed.txt"))
     GBCol.seed = seed
     GBCol.load(name="other", fname='ni.p453.out', Z=28, method="cna_z", pattr="c_cna")
-    LER = GBCol.analyze_other("other", eps=eps)
+    LER = GBCol.analyze_other("other", "LER", eps=eps)
     model = np.load(path.join(reporoot, "tests", "unique", "LER.pkl"))
     assert np.allclose(LER, model[0])
 

@@ -6,6 +6,12 @@ from gblearn import msg, lae
 from os import path
 from tqdm import tqdm
 tqdm.monitor_interval = 0
+import multiprocessing as mp
+
+def _scatter_mp(gb, scatterargs):
+    """Wrapper function to run multiprocessing with Scatter
+    """
+    return gb.scatter(False, **scatterargs)
 
 class GrainBoundaryCollection(OrderedDict):
     """Represents a collection of grain boundaries and the unique environments
@@ -86,6 +92,7 @@ class GrainBoundaryCollection(OrderedDict):
         self.LAE = {}
         self.seed = seed
         self.others = {}
+        self.models = {}
 
         if rxgbid is not None:
             import re
@@ -257,6 +264,10 @@ class GrainBoundaryCollection(OrderedDict):
     def soap(self, autotrim=True, **soapargs):
         """Calculates the SOAP vector matrix for the atomic environments at
         each grain boundary.
+
+        Args:
+            autotrim (boolean): If true will automatically call :meth: `self.trim`
+            soapargs (dict): key-value pairs of the SOAP parameters (see :class: `SOAPCalculator`)
         """
         self.repargs["soap"] = soapargs
         self.store.configure("soap", **soapargs)
@@ -276,8 +287,14 @@ class GrainBoundaryCollection(OrderedDict):
         if autotrim:
             self.trim()
 
-    def scatter(self, **scatterargs):
+    def scatter(self, threads=0, **scatterargs):
         """Calculates the Scatter vectors for each grain boundary.
+
+        Args:
+            threads (int): the number of threads to use. If 0, the number of cores
+              will try to be determined from multiprocessing.cpu_count(). If this fails
+              1 thread will be used.
+            scatterargs (dict): key-value pairs of the Scatter parameters (see :module: `SNET`)
         """
         self.repargs["scatter"] = scatterargs
         self.store.configure("scatter", **scatterargs)
@@ -287,8 +304,27 @@ class GrainBoundaryCollection(OrderedDict):
             #No need to recompute if the store has the result.
             return Scatter
 
-        for gbid, gb in tqdm(self.items()):
-            Scatter[gbid] = gb.scatter(cache=False, **scatterargs)
+        if threads == 0:
+            try:
+                threads = mp.cpu_count()
+            except NotImplementedError:
+                threads=1
+
+        pbar = tqdm(total=len(self))
+        def _update(*a):
+            """Updates the tqdm bar
+            """
+            pbar.update()
+        pool = mp.Pool(processes=threads)
+        result = {}
+        for gbid, gb in self.items():
+            result[gbid] = pool.apply_async(_scatter_mp, args=(gb, scatterargs ),
+                                            callback=_update)
+        pool.close()
+        pool.join()
+
+        for gbid, res in result.items():
+            Scatter[gbid] = res.get()
 
     @property
     def Scatter(self):
@@ -300,6 +336,24 @@ class GrainBoundaryCollection(OrderedDict):
                      ":meth:`scatter`.")
 
         return result
+
+    @property
+    def SM(self):
+        """Returns the Scatter feature matrix based on the current Scatter parameters
+        """
+        if len(self.store.Scatter) == 0:
+            msg.info("The Scatter vectors haven't been computed yet. Use "
+                     ":meth:`scatter`.")
+
+        size = 0;
+        with self.store.Scatter[self.keys()[0]] as scat:
+            size = len(scat)
+        matrix = np.zeros((len(self), size))
+        for id, gbid in enumerate(self):
+            with self.store.Scatter[gbid] as scat:
+                matrix[id] = scat
+
+        return matrix
 
     @property
     def P(self):
@@ -603,39 +657,50 @@ class GrainBoundaryCollection(OrderedDict):
             gb.LER = result
         return result
 
-
-    def analyze_other(self, name, analysis='LER', **kwargs):
+    def analyze_other(self, name, analysis, **kwargs):
         """Analyzies the given GB based on the given anlysis argument
 
         Args:
             name (string): the id of the grain boundary to analyze, which
                 corresponds to the key of the GB in the others dictionary
             analysis (string): the analysis desired. This must be from the list
-                (LER).
-            kwargs (dict):
+                (LER, ASR, Scatter), and the necessary analysis must also be
+                done for the GrainBoundaryCollection.
+            kwargs (dict): any additional arguments needed for the analysis
+                requested
 
             Returns:
                 The analysis given by the specified method.
         """
-        if analysis == 'LER':
-            if 'eps' not in kwargs:
-                raise ValueError("Epsilon is required for LER analysis")
-            return self._other_LER(name, self.others[name], **kwargs)
+        analysismap = {
+            "LER": self.other_LER,
+            "ASR": self.other_ASR,
+            "Scatter": self.other_Scatter
+        }
+        return analysismap[analysis](name, self.others[name], **kwargs)
 
-    def _other_LER(self, name, gb, eps, cache=True, **kwargs):
+    def _other_LER(self, name, gb, cache=True, **kwargs):
         """Analyzies the Given GB based on LER
 
         .. note: this will automatically use the soap args stored in self
 
-        gb (GrainBoundary): an instance of class:`GrainBoundary` on which to
-            perform the LER analysis.
-        eps (float): `eps` value used in finding the set of unique LAEs in
-          the GB system.
-        cache (boolean): set to false if the LER should not be stored in the
-            class:`GrainBoundary` object itself as gb.LER
-        kwargs (dict): the arguments sent to meth:`setup_hash_tables`
+        Args:
+            name (string): the unique id of the GrainBoundary
+            gb (GrainBoundary): an instance of class:`GrainBoundary` on which to
+              perform the LER analysis.
+            eps (float): `eps` value used in finding the set of unique LAEs in
+              the GB system.
+            cache (boolean): set to false if the LER should not be stored in the
+               class:`GrainBoundary` object itself as gb.LER
+             kwargs (dict): the arguments sent to meth:`setup_hash_tables` and the
+               epsilon value
+
+        Returns:
+            The LER of the specified GrainBoundary
 
         """
+        if 'eps' not in kwargs:
+            raise ValueError("Epsilon is required for LER analysis")
         gb.soap(**self.repargs["soap"])
         gb.trim()
         U = self.U(eps)['U']
@@ -645,6 +710,18 @@ class GrainBoundaryCollection(OrderedDict):
         self._assign(gb, LAEs, U)
 
         return self._LER(gb, U)
+
+    def _other_ASR(self, name, gb, cache=True, **kwargs):
+        """Analyzies the given GrainBoundary with the ASR representation
+
+        """
+        raise NotImplementedError()
+
+    def _other_Scatter(self, name, gb, cache=True, **kwargs):
+        """Analyzies the given GrainBoundary with the Scattering Transformation
+
+        """
+        raise NotImplementedError()
 
     def feature_map_file(self, eps):
         """Returns the full path to the feature map file.
@@ -904,8 +981,11 @@ class GrainBoundary(object):
         """
         import SNET
         if self.Scatter is None:
-            atoms = self.atoms
-            Scatter = SNET.scat_features(atoms.get_positions(), atoms.get_atomic_numbers())
+            if isinstance(self.Z, int):
+                atomic_numbers=np.full((len(self), 1), self.Z)
+            else:
+                atomic_numers=np.asarray(Z)
+            Scatter = SNET.scat_features(self.xyz, atomic_numbers, **scatterargs)
             if cache:
                 self.Scatter = Scatter
             else:
