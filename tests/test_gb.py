@@ -11,8 +11,7 @@ def GBCol(tmpdir):
     from gblearn.gb import GrainBoundaryCollection as GBC
     gbpath = path.join(reporoot, "tests", "homer")
     root = str(tmpdir.join("homer"))
-    result = GBC("homer", gbpath, root, r"ni.p(?P<gbid>\d+).out",
-                 rcut=3.25, lmax=12, nmax=12, sigma=0.5)
+    result = GBC("homer", gbpath, root, r"ni.p(?P<gbid>\d+).out", padding=6.50)
 
     from gblearn.gb import GrainBoundary
     result.load(Z=28, method="cna_z", pattr="c_cna")
@@ -75,6 +74,8 @@ def _preload_soap(GBCol):
         int: dimensions of SOAP vectors that are loaded.
     """
     GBCol.restricted = False
+    GBCol.repargs["soap"] = {"rcut":3.25, "lmax":12, "nmax":12, "sigma":0.5}
+    GBCol.store.configure("soap", rcut=3.25, lmax=12, nmax=12, sigma=0.5)
     GBCol.store.restricted = False
     GBCol.store.P.restricted = False
 
@@ -94,8 +95,7 @@ def test_gbids(GBCol):
     #just get the file names as GB ids.
     from gblearn.gb import GrainBoundaryCollection as GBC
     gbpath = path.join(reporoot, "tests", "homer")
-    col = GBC("homer", gbpath,
-              rcut=3.25, lmax=12, nmax=12, sigma=0.5)
+    col = GBC("homer", gbpath, padding=6.50)
     model = (["ni.p{}.out".format(i) for i in range(453, 460)] +
              ["pissnnl.{}.npy".format(i) for i in range(453, 460)] +
              ["README.md", "energy.txt"])
@@ -107,7 +107,7 @@ def test_gbsoap(GBCol):
     """
     assert len(GBCol.P) == 0
 
-    GBCol.soap()
+    GBCol.soap(rcut=3.25, lmax=12, nmax=12, sigma=0.5)
     for gbid in GBCol:
         with GBCol.P[gbid] as stored:
             Pfile = "pissnnl.{}.npy".format(gbid)
@@ -115,7 +115,7 @@ def test_gbsoap(GBCol):
             assert np.allclose(stored, model)
 
     #Make sure it doesn't recompute if they're all there.
-    assert GBCol.soap() is GBCol.P
+    assert GBCol.soap(rcut=3.25, lmax=12, nmax=12, sigma=0.5) is GBCol.P
 
 def test_gbscatter(GBCol):
     """Tests calculation of Scatter vectors.
@@ -245,6 +245,10 @@ def test_others(GBCol):
     seed = np.loadtxt(path.join(reporoot, "tests", "elements", "Ni.pissnnl_seed.txt"))
     GBCol.seed = seed
     GBCol.load(name="other", fname='ni.p453.out', Z=28, method="cna_z", pattr="c_cna")
-    LER = GBCol.analyze_other("other", eps=eps)
+    LER = GBCol.analyze_other("other", "LER", eps=eps)
     model = np.load(path.join(reporoot, "tests", "unique", "LER.pkl"))
-    assert np.allclose(LER, model[0, :])
+    assert np.allclose(LER, model[0])
+
+    #Test that if no name is given for other, the filename is just used
+    GBCol.load(fname='ni.p454.out', Z=28, method="cna_z", pattr="c_cna")
+    assert "ni.p454.out" in GBCol.others
