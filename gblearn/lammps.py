@@ -177,13 +177,13 @@ class Timestep(object):
                 np.allclose(self.box, other.box) and
                 self.periodic == other.periodic)
 
-    def gb(self, Z=None, method="median", pattr="c_csd", extras=True, padding=5.,
+    def gb(self, Z=None, method="cna", pattr="c_cna", extras=True, padding=10.0,
            **selectargs):
         """Returns the grain boundary for this time step.
 
         Args:
             Z (int or list): element code(s) for the atomic species.
-            method (str): one of ['median', 'cna', 'cna_z', 'cna_x', 'cna_y'].
+            method (str): one of [cna', 'cna_z', 'cna_x', 'cna_y'].
             pattr (str): name of an attribute in :attr:`extras` to pass as the
               selection parameter of the routine.
             extras (bool): when True, include extra attributes in the new GB
@@ -191,8 +191,7 @@ class Timestep(object):
             padding (float): amount of perfect bulk to include as padding around
               the grain boundary before the representation is made.
             selectargs (dict): additional arguments passed to the atom selection
-              function. For `median`, see :func:`gblearn.selection.median` for the
-              arguments. For `cna*` see :func:`gblearn.selection.cna_max`.
+              function. For `cna*` see :func:`gblearn.selection.cna_max`.
 
         Returns:
             gblearn.gb.GrainBoundary: instance with only those atoms that appear
@@ -220,28 +219,24 @@ class Timestep(object):
                                selectargs=selargs, padding=padding)
         return result
 
-    def gbids(self, method="median", pattr=None, padding=5., **kwargs):
+    def gbids(self, method="cna", pattr=None, padding=10.0, **kwargs):
         """Returns the *indices* of the atoms that lie at the grain
         boundary.
 
         Args:
-            method (str): one of ['median', 'cna', 'cna_z', 'cna_y', 'cna_x'].
+            method (str): one of [cna', 'cna_z', 'cna_y', 'cna_x'].
             pattr (str): name of an attribute in :attr:`extras` to pass as the
               selection parameter of the routine.
             padding (float): amount of perfect bulk to include as padding around
               the grain boundary before the representation is made.
             kwargs (dict): additional arguments passed to the atom selection
-              function. For `median`, see :func:`gblearn.selection.median` for the
-              arguments.
+              function. For `cna*` see :func:`gblearn.selection.cna_max`.
 
         Returns:
             numpy.ndarray: of integer indices of atoms in this timestep that are
               considered to lie on the boundary.
 
         Examples:
-            Retrieve the positions of the atoms that lie at the boundary using the
-            median centro-symmetry parameter values.
-
             >>> from gblearn.lammps import Timestep
             >>> t0 = Timestep("lammps.dump")
             >>> ids = t0.gbids()
@@ -250,8 +245,7 @@ class Timestep(object):
         import gblearn.selection as sel
         from functools import partial
         methmap = {
-            "median": sel.median,
-            "cna": partial(sel.cna_max, coord=0),
+            "cna": sel.cna_max,
             "cna_z": partial(sel.cna_max, coord=2),
             "cna_y": partial(sel.cna_max, coord=1),
             "cna_x": partial(sel.cna_max, coord=0)

@@ -19,7 +19,7 @@ def extent(struct, axis=2):
     """
     return np.min(struct[:,axis]), np.max(struct[:,axis])
 
-def cna_max(xyz, cna, types=None, cna_val=1, padding=5.0, coord=0, **kwargs):
+def cna_max(xyz, cna, types=None, cna_val=1, padding=10.0, coord=None, **kwargs):
     """Returns the atoms in the crystal whose CNA value deviates from
     the given type; a buffer of rcut is added for padding to both
     sides of the grain boundary.
@@ -47,6 +47,10 @@ def cna_max(xyz, cna, types=None, cna_val=1, padding=5.0, coord=0, **kwargs):
         numpy.ndarray: of integer indices in `xyz` that match the filtering
           conditions.
     """
+    if coord is None:
+        shape = xyz.shape
+        coord = shape.index(max(shape))
+
     if types is not None:
         type_mask = np.logical_and(types != 4, types != 5)
         cna_mask = np.logical_and(cna != cna_val, type_mask)
@@ -64,6 +68,7 @@ def cna_max(xyz, cna, types=None, cna_val=1, padding=5.0, coord=0, **kwargs):
     result = np.where(np.logical_and(xyz[:,coord] >= minx, xyz[:,coord] <= maxx))[0]
     return result
 
+@deprecated
 def median(xyz, param, limit_extent=None, tolerance=0.5, width=8., types=None, **kwargs):
     """Returns those atoms that deviate from the median appreciably,
     along a given axis.

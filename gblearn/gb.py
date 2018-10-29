@@ -69,7 +69,7 @@ class GrainBoundaryCollection(OrderedDict):
            belonging to the original collection.
     """
     def __init__(self, name, root, store=None, rxgbid=None, sortkey=None,
-                 reverse=False, seed=None, padding=5.):
+                 reverse=False, seed=None, padding=10.0):
         super(GrainBoundaryCollection, self).__init__()
         self.name = name
         self.root = path.abspath(path.expanduser(root))
@@ -92,7 +92,6 @@ class GrainBoundaryCollection(OrderedDict):
         self.LAE = {}
         self.seed = seed
         self.others = {}
-        self.models = {}
 
         if rxgbid is not None:
             import re
@@ -341,16 +340,15 @@ class GrainBoundaryCollection(OrderedDict):
     def SM(self):
         """Returns the Scatter feature matrix based on the current Scatter parameters
         """
-        if len(self.store.Scatter) == 0:
-            msg.info("The Scatter vectors haven't been computed yet. Use "
-                     ":meth:`scatter`.")
-
+        Scatter = self.Scatter
+        if len(Scatter) == 0:
+            return
         size = 0;
-        with self.store.Scatter[self.keys()[0]] as scat:
+        with Scatter[self.keys()[0]] as scat:
             size = len(scat)
         matrix = np.zeros((len(self), size))
         for id, gbid in enumerate(self):
-            with self.store.Scatter[gbid] as scat:
+            with Scatter[gbid] as scat:
                 matrix[id] = scat
 
         return matrix
@@ -673,9 +671,9 @@ class GrainBoundaryCollection(OrderedDict):
                 The analysis given by the specified method.
         """
         analysismap = {
-            "LER": self.other_LER,
-            "ASR": self.other_ASR,
-            "Scatter": self.other_Scatter
+            "LER": self._other_LER,
+            "ASR": self._other_ASR,
+            "Scatter": self._other_Scatter
         }
         return analysismap[analysis](name, self.others[name], **kwargs)
 
@@ -701,6 +699,7 @@ class GrainBoundaryCollection(OrderedDict):
         """
         if 'eps' not in kwargs:
             raise ValueError("Epsilon is required for LER analysis")
+        eps = kwargs.pop('eps')
         gb.soap(**self.repargs["soap"])
         gb.trim()
         U = self.U(eps)['U']
@@ -816,7 +815,7 @@ class GrainBoundary(object):
           local environments of each type in the GB.
     """
     def __init__(self, xyz, types, box, Z, extras=None, selectargs=None,
-                 makelat=True, params=None, padding=5.):
+                 makelat=True, params=None, padding=10.0):
 
         from gblearn.lammps import make_lattice
         self.xyz = xyz.copy()
@@ -875,7 +874,7 @@ class GrainBoundary(object):
         norm.
         """
         if self._NP is None:
-            P = self.soap()
+            P = self.soap(self.params["soap"])
             pself = np.array([np.dot(p, p) for p in P])
             self._NP = np.array([P[i,:]/np.sqrt(pself[i])
                                  for i in range(len(P))
@@ -904,8 +903,7 @@ class GrainBoundary(object):
         import gblearn.selection as sel
         from functools import partial
         methmap = {
-            "median": sel.median,
-            "cna": partial(sel.cna_max, coord=0),
+            "cna": sel.cna_max,
             "cna_z": partial(sel.cna_max, coord=2)
         }
         #Use the same selection parameters that were used to construct
@@ -953,6 +951,10 @@ class GrainBoundary(object):
             soapargs (dict): soap parameters to use in extracting the
               representation.
         """
+        if "soap" in self.params and soapargs != self.params["soap"]:
+            self.P = None
+            self.params["soap"] = soapargs
+
         if self.P is None:
             from gblearn.soap import SOAPCalculator
             calculator = SOAPCalculator(**soapargs)
@@ -979,6 +981,10 @@ class GrainBoundary(object):
         Args:
             cache (bool): when True, cache the resulting Scatter vector.
         """
+        if "scatter" in self.params and scatterargs != self.params["scatter"]:
+            self.Scatter = None
+            self.params["soap"] = soapargs
+
         import SNET
         if self.Scatter is None:
             if isinstance(self.Z, int):
@@ -997,15 +1003,11 @@ class GrainBoundary(object):
     def atoms(self):
         """Returns an atoms object for the boundary that can be used for
         calculating the SOAP vectors.
-
-        Args:
-            Z (int): element code for the atomic species.
         """
-        if self._atoms is None:
-            from quippy.atoms import Atoms
-            a = Atoms(lattice=self.lattice)
-            for xyz in self.xyz:
-                a.add_atoms(xyz, self.Z)
+        if self._atoms is None: # FIXME: Check with Conrad if this is right
+            from ase.import Atoms
+            a = Atoms(xyz, self.Z)
+            a.set_cell(self.lattice)
             self._atoms = a
         return self._atoms
 
@@ -1036,7 +1038,4 @@ class GrainBoundary(object):
                 for xyz in self.xyz:
                     f.write(afmt.format(species, *xyz))
         else:
-            import quippy.cinoutput as qcio
-            out = qcio.CInOutputWriter(filepath)
-            self.atoms.write(out)
-            out.close()
+            self.atoms.write(filename)

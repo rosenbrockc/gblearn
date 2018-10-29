@@ -14,7 +14,7 @@ def GBCol(tmpdir):
     result = GBC("homer", gbpath, root, r"ni.p(?P<gbid>\d+).out", padding=6.50)
 
     from gblearn.gb import GrainBoundary
-    result.load(Z=28, method="cna_z", pattr="c_cna")
+    result.load(Z=28, method="cna", pattr="c_cna")
     for gbid, gb in result.items():
         assert isinstance(gb, GrainBoundary)
 
@@ -27,7 +27,9 @@ def GB9(request):
     """
     from gblearn.lammps import Timestep
     p9 = Timestep("tests/selection/ni.p9.out")
-    return p9.gb(28)
+    result = p9.gb(28)
+    result.params["soap"] = {}
+    return result
 
 def test_properties(GBCol):
     """Tests the loading and reading of properties for a GB collection.
@@ -46,7 +48,7 @@ def test_K(GB9):
     """
     K = GB9.K
 
-def test_gb(GB9, tmpdir):
+def test_gb(GB9, tmpdir): # FIXME: Tests are based on Median selction method
     """Tests the basic grain boundary instance attributes and methods
     (i.e., those that don't interact with other modules).
     """

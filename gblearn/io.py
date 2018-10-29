@@ -113,14 +113,14 @@ class ResultStore(object):
     """
     repstr = {
         "soap": ["lmax", "nmax", "rcut"],
-        "scatter": ["Layers", "SPH_L", "n_trans", "n_angle1", "n_angle2"]
+        "scatter": ["density", "Layers", "SPH_L", "n_trans", "n_angle1", "n_angle2"]
     }
     reps = {
         "soap": ["P", "U", "ASR", "LER", "features"],
         "scatter": ["Scatter", "heatmaps"]
     }
 
-    def __init__(self, gbids, root=None, restricted=True, padding=5.):
+    def __init__(self, gbids, root=None, restricted=True, padding=10.0):
         self.root = root
         self.restricted = restricted
         self.gbids = gbids

@@ -66,11 +66,11 @@ def test_collection(GBs, tmpdir):
     assert GB10 in SVC
     with pytest.raises(TypeError):
         SVC[10] = "some string"
-    
+
     for i, GB in enumerate(SVC):
         if i > 3:
             break
-        
+
     #Get a subset of the vectors into a new collection.
     sub = SVC[7:11]
     assert isinstance(sub, SOAPVectorCollection)
@@ -90,13 +90,13 @@ def test_collection(GBs, tmpdir):
         RDFs[0] + ADFs[0]
     with pytest.raises(TypeError):
         RDFs.add(ADFs[0])
-        
+
     #Make sure that the slices also get the DFs right.
     DF6 = SVC[6:12]
     DF6.RDFs()
     DF6.ADFs(catom=True)
     DF4 = DF6[0:4]
-    
+
     #Test the saving and re-loading of the collection.
     svcfile = str(tmpdir.join("SVC.pkl"))
     sub.save(svcfile)
@@ -110,7 +110,7 @@ def test_collection(GBs, tmpdir):
     memptySVC = SOAPVectorCollection.from_file(esvcfile)
     assert emptySVC == memptySVC
     assert emptySVC.equal(memptySVC)
-    
+
     #Also test construction serially.
     bRDFs = SVC[25:27].RDFs()
     bADFs = SVC[25:27].ADFs()
@@ -126,7 +126,7 @@ def test_collection(GBs, tmpdir):
     bADFs.save(ADFfile)
     mADFs = DFCollection.from_file(ADFfile)
     assert mADFs == bADFs
-    
+
     #Next, try and save/restore a single RDF.
     from gblearn.decomposition import DF
     single = RDFs[0]
@@ -144,12 +144,12 @@ def test_collection(GBs, tmpdir):
     assert msingle == single
     assert msingle in ADFs
     ADFs[0] = msingle
-    
+
     with pytest.raises(TypeError):
         RDFs[0] = True
     with pytest.raises(TypeError):
         ADFs[0] = False
-    
+
     #Also test bogus equalities
     assert not (mRDFs == "dummy")
     assert not (single == 1e10)
@@ -167,7 +167,7 @@ def test_collection(GBs, tmpdir):
     bRDFs += RDFs
     with pytest.raises(TypeError):
         bRDFs += 10
-        
+
     #Test the string representation of the collection and individual
     #RDF.
     str(bRDFs)
@@ -176,7 +176,7 @@ def test_collection(GBs, tmpdir):
     #Make sure the correct errors are raised if the user is confused.
     with pytest.raises(ValueError):
         DFCollection.dfs_from_soap(None, "bogus")
-    
+
     #Testing creating a RDF from scratch.
     custom = DFCollection()
     custom.add(RDFs[1])
@@ -201,7 +201,7 @@ def test_collection(GBs, tmpdir):
     refined = custom.refine(RDFs)
     histfile = str(tmpdir.join("RDFcolHist.pdf"))
     RDFs.histogram(savefile=histfile)
-    
+
     from gblearn.elements import shells
     refined.plot(withavg=True, shells=shells("Ni"))
     with pytest.raises(TypeError):
@@ -219,7 +219,7 @@ def test_collection(GBs, tmpdir):
     unempty = empty.unique()
     assert len(unempty) == 0
     assert type(unempty) == RDFCollection
-    
+
 def test_fcut(rx):
     """Tests the cutoff function values.
     """
@@ -242,13 +242,13 @@ def test_decompose(FCC, BCC, HCP):
     with open("tests/decomp/dHCP.pkl", 'rb') as f:
         mHCP = load(f)
 
-    d = SOAPDecomposer()    
+    d = SOAPDecomposer()
     #assert mFCC == d.decompose(FCC[0])
     assert mBCC == d.decompose(BCC[1])
     assert mHCP == d.decompose(HCP[1])
 
 def test_partition():
-    from gblearn.decomposition import SOAPDecomposer    
+    from gblearn.decomposition import SOAPDecomposer
     d = SOAPDecomposer()
     l0 = np.load("tests/decomp/partition_0.npy")
     lrest = np.load("tests/decomp/partition_rest.npy")
@@ -259,14 +259,14 @@ def test_partition():
 def test_RDF(FCC, BCC, HCP, rx):
     """Tests the RDF construction for the pure elements.
     """
-    
+
     NiRDF = np.load("tests/decomp/NiRDF.npy")
     CrRDF = np.load("tests/decomp/CrRDF.npy")
     MgRDF = np.load("tests/decomp/MgRDF.npy")
-    
+
     from gblearn.decomposition import SOAPDecomposer, SOAPVector
     d = SOAPDecomposer()
-    
+
     vFCC = SOAPVector(FCC[0], d)
     #We call this assertion twice because the second time it is
     #supposed to use a cached version, since constructing the RDF is
@@ -318,7 +318,7 @@ def test_vector_saveload(FCC, rx, tmpdir):
     rx = np.linspace(0, 6, 100)
     vFCC.RDF(rx)
     vFCC.RDF(rx, True)
-    
+
     vFCC.save(str(NiSVr))
     nFCC = SOAPVector.from_file(str(NiSVr))
     assert nFCC.equal(vFCC)
@@ -340,4 +340,3 @@ def test_df(FCC, rx, tmpdir):
     with pytest.raises(TypeError):
         vFCC.RDF(rx) - 200
     assert vFCC.RDF(rx).same(vFCC.RDF(rx), 1e-10)
-    
