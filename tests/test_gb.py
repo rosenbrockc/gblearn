@@ -27,8 +27,8 @@ def GB9(request):
     """
     from gblearn.lammps import Timestep
     p9 = Timestep("tests/selection/ni.p9.out")
-    result = p9.gb(28)
-    result.params["soap"] = {}
+    result = p9.gb(28, coord=0)
+    result.rep_params["soap"] = {}
     return result
 
 def test_properties(GBCol):
@@ -59,7 +59,7 @@ def test_gb(GB9, tmpdir): # FIXME: Tests are based on Median selction method
     fxyz = str(tmpdir.join("s9.xyz"))
     GB9.save_xyz(fxyz, "Ni")
 
-    from quippy import Atoms
+    from ase import Atoms
     A = Atoms(fxyz)
     B = Atoms("tests/gb/s9.xyz")
     assert A.equivalent(B)
@@ -246,7 +246,7 @@ def test_others(GBCol):
     _preload_U(GBCol, eps)
     seed = np.loadtxt(path.join(reporoot, "tests", "elements", "Ni.pissnnl_seed.txt"))
     GBCol.seed = seed
-    GBCol.load(name="other", fname='ni.p453.out', Z=28, method="cna_z", pattr="c_cna")
+    GBCol.load(name="other", fname='ni.p453.out', Z=28, method="cna", pattr="c_cna")
     LER = GBCol.analyze_other("other", "LER", eps=eps)
     model = np.load(path.join(reporoot, "tests", "unique", "LER.pkl"))
     assert np.allclose(LER, model[0])

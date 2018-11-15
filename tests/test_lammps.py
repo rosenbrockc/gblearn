@@ -13,13 +13,14 @@ def test_cnasel():
     """Tests selection of GB by CNA deviation from perfect crystal.
     """
     from gblearn.lammps import Timestep
+    coord=0
     t = Timestep("tests/lammps/dump.in")
-    gbids = t.gbids("cna", "c_cna", padding=10.)
-    gb = t.gb(28, "cna", "c_cna", padding=10.)
+    gbids = t.gbids("cna", "c_cna", padding=10., coord=coord)
+    gb = t.gb(28, "cna", "c_cna", padding=10., coord=coord)
 
     t3 = Timestep("tests/lammps/dump-3.in")
     with pytest.raises(ValueError):
-        gbids = t3.gbids("cna", "c_cna", padding=10.)        
+        gbids = t3.gbids("cna", "c_cna", padding=10., coord=coord)        
 
 def test_corners():
     """Tests some corner cases for 100% code coverage with time steps.
@@ -39,7 +40,7 @@ def test_corners():
     t4 = Timestep("tests/lammps/dump-corners.in", 3)
     assert t4.periodic == (False, False, False)
     assert len(t4) == 20
-    
+
 def test_timestep(tmpdir):
     """Tests reading a lammps dump file.
     """
@@ -72,7 +73,7 @@ def test_timestep(tmpdir):
     assert np.allclose(bs.box, np.array([[-61.6991, -24.705 ],
                                          [  0.6296,   2.067 ],
                                          [  0.4448,   2.3731]]))
-    
+
 def test_dump(tmpdir):
     """Tests reading a dump file with multiple timesteps.
     """
@@ -93,7 +94,7 @@ def test_dump(tmpdir):
     assert np.allclose(t.xyz[-1,:], [-24.705, 1.34849, 0.766101])
     assert t.c_cna[0] == 5
     assert abs(t.c_csd[0]-12.3904) < 1e-7
-    
+
     t1 = d[1]
     assert np.allclose(t1.box, np.array([[-66.4863, 120.625],
                                         [0., 30.1777],

@@ -2,6 +2,8 @@
 grain boundary properties.
 """
 import numpy as np
+from gblearn.base import deprecated
+
 def extent(struct, axis=2):
     """Returns the maximum extent of the structure along the given
     axis (default `x`, on axis 2).
@@ -47,9 +49,9 @@ def cna_max(xyz, cna, types=None, cna_val=1, padding=10.0, coord=None, **kwargs)
         numpy.ndarray: of integer indices in `xyz` that match the filtering
           conditions.
     """
-    if coord is None:
-        shape = xyz.shape
-        coord = shape.index(max(shape))
+    #if coord is None:
+        #dif = xyz.max(axis=0) - xyz.min(axis=0)
+        #coord = dif.argmax()
 
     if types is not None:
         type_mask = np.logical_and(types != 4, types != 5)

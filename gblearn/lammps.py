@@ -245,10 +245,7 @@ class Timestep(object):
         import gblearn.selection as sel
         from functools import partial
         methmap = {
-            "cna": sel.cna_max,
-            "cna_z": partial(sel.cna_max, coord=2),
-            "cna_y": partial(sel.cna_max, coord=1),
-            "cna_x": partial(sel.cna_max, coord=0)
+            "cna": partial(sel.cna_max, coord=kwargs["coord"])
             }
         if method in methmap:
             extra = getattr(self, pattr) if pattr is not None else None

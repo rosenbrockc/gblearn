@@ -67,6 +67,7 @@ class GrainBoundaryCollection(OrderedDict):
           LAE objects corresponding to the id.
         others (dict): keys are ids while values are Grain Boundary objects not
            belonging to the original collection.
+        axis (int): the dimension in which the Grain Boundary was parsed
     """
     def __init__(self, name, root, store=None, rxgbid=None, sortkey=None,
                  reverse=False, seed=None, padding=10.0):
@@ -92,6 +93,7 @@ class GrainBoundaryCollection(OrderedDict):
         self.LAE = {}
         self.seed = seed
         self.others = {}
+        self.axis = None
 
         if rxgbid is not None:
             import re
@@ -209,8 +211,8 @@ class GrainBoundaryCollection(OrderedDict):
           :class:`GrainBoundary` instances, in the sorted order that they were
           discovered.
 
-        .. warning:: if name is given, fname must also be given and the result
-            will be loaded into the others dictionary
+        .. note:: If 'coord' is not given as a selectarg, load will determine
+          and use the coordinate along the longest dimension.
 
         Args:
             parser: object used to parse the raw GB file. Defaults to
@@ -236,7 +238,7 @@ class GrainBoundaryCollection(OrderedDict):
 
         if fname is not None:
             if name is None:
-                print("Name not specified, using {} as unique identifier".format(fname))
+                msg.info("Name not specified, using {} as unique identifier".format(fname))
                 name = fname
             gbpath = path.join(self.root, fname)
             self.others[name] = self._parse_gb(gbpath, parser, **selectargs)
@@ -251,6 +253,11 @@ class GrainBoundaryCollection(OrderedDict):
         """Parses a given file into a :class: `GrainBoundary` object
         """
         t = parser(gbpath)
+        self.axis = selectargs.get('coord', None)
+        if self.axis is None:
+            dif = t.xyz.max(axis=0) - t.xyz.min(axis=0)
+            self.axis = dif.argmax()
+            selectargs['coord'] = self.axis
         return t.gb(padding=self.padding, **selectargs)
 
     def trim(self):
@@ -277,6 +284,8 @@ class GrainBoundaryCollection(OrderedDict):
         if len(P) == len(self):
             if autotrim:
                 self.trim()
+            for gbid, gb in self.items():
+                self[gbid].rep_params["soap"] = soapargs
             #No need to recompute if the store has the result.
             return P
 
@@ -300,6 +309,8 @@ class GrainBoundaryCollection(OrderedDict):
         Scatter = self.store.Scatter
 
         if len(Scatter) == len(self):
+            for gbid, gb in self.items():
+               self[gbid].rep_params["scatter"] = scatterargs
             #No need to recompute if the store has the result.
             return Scatter
 
@@ -307,6 +318,8 @@ class GrainBoundaryCollection(OrderedDict):
             try:
                 threads = mp.cpu_count()
             except NotImplementedError:
+                msg.warn("Unable able to determine number of available CPU's, "
+                        "resorting to 1 thread")
                 threads=1
 
         pbar = tqdm(total=len(self))
@@ -324,6 +337,7 @@ class GrainBoundaryCollection(OrderedDict):
 
         for gbid, res in result.items():
             Scatter[gbid] = res.get()
+            self[gbid].rep_params["scatter"] = scatterargs
 
     @property
     def Scatter(self):
@@ -426,8 +440,8 @@ class GrainBoundaryCollection(OrderedDict):
         for u, elist in LAEs.items():
             for PID, VID in elist[1:]:
                 gb.LAEs[VID] = u
-        LAE = [U.keys().index(x) for x in gb.LAEs]
-        gb.atoms.add_property("LAE",LAE)
+        #LAE = [U.keys().index(x) for x in gb.LAEs]
+        #gb.atoms.add_property("LAE",LAE)
 
 
     def uniquify(self, eps, **kwargs):
@@ -805,7 +819,7 @@ class GrainBoundary(object):
           the outermost atoms of the GB slice.
         calculator (~gblearn.soap.SOAPCalculator): calculator for getting the
           SOAP vector matrix for this GB.
-        Z (int or list): element code(s) for the atomic species.
+        Z (list): element codes for the atomic species.
         P (numpy.ndarray): SOAP vector matrix; shape `(N, S)`, where `N` is the
           number of atoms at the boundary and `S` is the dimensionality of the
           SOAP vector space (which varies with SOAP parameters).
@@ -821,6 +835,7 @@ class GrainBoundary(object):
         self.xyz = xyz.copy()
         self.types = types
         self.params = params.copy() if params is not None else {}
+        self.rep_params = {"soap":{}, "scatter":{}}
 
         if makelat:
             self.box = box
@@ -829,7 +844,11 @@ class GrainBoundary(object):
             self.box = None
             self.lattice = box.copy()
 
-        self.Z = Z
+        self.Z = None
+        if isinstance(Z, int):
+            self.Z = np.full((len(self), 1), Z)
+        else:
+            self.Z = np.asarray(Z)
         self.LAEs = None
         self.LER = None
 
@@ -838,12 +857,11 @@ class GrainBoundary(object):
         #environment.
         self.selectargs = selectargs
         self.padding = padding/2.
-
         if extras is not None:
             self.extras = extras.keys()
             for k, v in extras.items():
                 if not hasattr(self, k):
-                    setattr(self, k, v.copy())
+                    setattr(self, k, v)
                 else:
                     msg.warn("Cannot set extra attribute `{}`; "
                              "already exists.".format(k))
@@ -874,7 +892,7 @@ class GrainBoundary(object):
         norm.
         """
         if self._NP is None:
-            P = self.soap(self.params["soap"])
+            P = self.soap(self.rep_params["soap"])
             pself = np.array([np.dot(p, p) for p in P])
             self._NP = np.array([P[i,:]/np.sqrt(pself[i])
                                  for i in range(len(P))
@@ -903,8 +921,7 @@ class GrainBoundary(object):
         import gblearn.selection as sel
         from functools import partial
         methmap = {
-            "cna": sel.cna_max,
-            "cna_z": partial(sel.cna_max, coord=2)
+            "cna": partial(sel.cna_max, coord=self.selectargs['coord'])
         }
         #Use the same selection parameters that were used to construct
         #the GB in the first place. However, the padding parameter will
@@ -951,9 +968,9 @@ class GrainBoundary(object):
             soapargs (dict): soap parameters to use in extracting the
               representation.
         """
-        if "soap" in self.params and soapargs != self.params["soap"]:
+        if soapargs != self.rep_params["soap"]:
             self.P = None
-            self.params["soap"] = soapargs
+            self.rep_params["soap"] = soapargs
 
         if self.P is None:
             from gblearn.soap import SOAPCalculator
@@ -981,17 +998,13 @@ class GrainBoundary(object):
         Args:
             cache (bool): when True, cache the resulting Scatter vector.
         """
-        if "scatter" in self.params and scatterargs != self.params["scatter"]:
+        if scatterargs != self.rep_params["scatter"]:
             self.Scatter = None
-            self.params["soap"] = soapargs
+            self.rep_params["scatter"] = scatterargs
 
         import SNET
         if self.Scatter is None:
-            if isinstance(self.Z, int):
-                atomic_numbers=np.full((len(self), 1), self.Z)
-            else:
-                atomic_numers=np.asarray(Z)
-            Scatter = SNET.scat_features(self.xyz, atomic_numbers, **scatterargs)
+            Scatter = SNET.scatlite_features(self.xyz, self.Z, self.lattice, **scatterargs)
             if cache:
                 self.Scatter = Scatter
             else:
@@ -1004,9 +1017,9 @@ class GrainBoundary(object):
         """Returns an atoms object for the boundary that can be used for
         calculating the SOAP vectors.
         """
-        if self._atoms is None: # FIXME: Check with Conrad if this is right
-            from ase.import Atoms
-            a = Atoms(xyz, self.Z)
+        if self._atoms is None:
+            from ase import Atoms
+            a = Atoms(positions=self.xyz, numbers=self.Z)
             a.set_cell(self.lattice)
             self._atoms = a
         return self._atoms

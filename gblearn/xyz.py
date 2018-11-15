@@ -1,6 +1,6 @@
 """Module to create :class:`GrainBoundary` objects from extended XYZ files.
 """
-import ase
+from ase.io import read
 
 class XYZParser(object):
     """Represents a grain boundary stored in extended XYZ format.
@@ -19,19 +19,23 @@ class XYZParser(object):
     """
     def __init__(self, filepath):
         self.filepath = filepath
-        self.atoms = ase.io.read(filepath)
+        self.atoms = read(filepath)
         self.xyz = self.atoms.get_positions()
-        self.extras = list(self.atoms.properties.keys()) # FIXME: ASE Atoms has no properties attribute
-        for k in self.extras:
-            setattr(self, k, self.atoms.properties[k])
+        self.arrays = list(self.atoms.arrays.keys())
+        self.info = list(self.atoms.info.keys())
+        for k in self.arrays:
+            setattr(self, k, self.atoms.arrays[k])
+        for k in self.info:
+            setattr(self, k, self.atoms.info[k])
+
 
         self.types = None
-        self.box = self.atoms.cell # FIXME: Check if ase.cell is the same as the lattice
+        self.box = self.atoms.cell
 
     def __eq__(self, other):# pragma: no cover
         return self.atoms == other.atoms
     def __len__(self):
-        return self.atoms.n
+        return len(self.atoms)
 
     def gb(self, Z=None, method="cna", pattr="c_cna", extras=True, padding=10.0,
            **selectargs):
@@ -62,10 +66,11 @@ class XYZParser(object):
         }
         selargs.update(selectargs)
 
-        ids = self.gbids(**selargs)
+        ids = self.gbids(padding=padding, **selargs)
 
         if extras:
-            x = {k: getattr(self, k)[ids+1] for k in self.extras}
+            x = {k: getattr(self, k)[ids] for k in self.arrays}
+            x.update({k: getattr(self, k) for k in self.info})
         else:# pragma: no cover
             x = None
         if self.types is not None:# pragma: no cover
@@ -75,8 +80,7 @@ class XYZParser(object):
 
         result = GrainBoundary(self.xyz[ids,:], types,
                                self.box, Z, extras=x, makelat=False,
-                               selectargs=selargs, params=self.atoms.params,
-                               padding=padding)
+                               selectargs=selargs, padding=padding)
         return result
 
     def gbids(self, method="cna", pattr=None, padding=10.0, **kwargs):
@@ -107,10 +111,7 @@ class XYZParser(object):
         import gblearn.selection as sel
         from functools import partial
         methmap = {
-            "cna": sel.cna_max,
-            "cna_z": partial(sel.cna_max, coord=2),
-            "cna_y": partial(sel.cna_max, coord=1),
-            "cna_x": partial(sel.cna_max, coord=0)
+            "cna": partial(sel.cna_max, coord=kwargs['coord'])
             }
         if method in methmap:
             extra = getattr(self, pattr) if pattr is not None else None
