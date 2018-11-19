@@ -105,6 +105,7 @@ class GrainBoundaryCollection(OrderedDict):
 
         from gblearn.io import ResultStore
         self.store = ResultStore(self.gbfiles.keys(), store, padding=padding)
+        #self.mutlistore = ResultStore(self.gbfiles.keys(), "multires_"+ store, padding=padding)
         self.padding = padding
 
     def get_property(self, name):
@@ -267,7 +268,7 @@ class GrainBoundaryCollection(OrderedDict):
         for gbid, gb in self.items():
             gb.trim()
 
-    def soap(self, autotrim=True, **soapargs):
+    def soap(self, lmax=10, nmax=10, rcut=5., autotrim=True, multires=None):
         """Calculates the SOAP vector matrix for the atomic environments at
         each grain boundary.
 
@@ -275,10 +276,20 @@ class GrainBoundaryCollection(OrderedDict):
             autotrim (boolean): If true will automatically call :meth: `self.trim`
             soapargs (dict): key-value pairs of the SOAP parameters (see :class: `SOAPCalculator`)
         """
-        self.repargs["soap"] = soapargs
-        self.store.configure("soap", **soapargs)
-        assert abs(soapargs["rcut"] - self.padding/2.) < 1e-8
-
+        soapargs = {
+            'lmax':lmax,
+            'nmax':nmax,
+            'rcut': rcut
+        }
+        if multires is not None:
+            self.repargs["soap"] = multires
+            self.store.configure("soap", multires)
+            for args in multires:
+                assert abs(args["rcut"] - self.padding/2.) < 1e-8
+        else:
+            self.repargs["soap"] = soapargs
+            self.store.configure("soap", **soapargs)
+            assert abs(soapargs["rcut"] - self.padding/2.) < 1e-8
         P = self.store.P
 
         if len(P) == len(self):
@@ -286,16 +297,26 @@ class GrainBoundaryCollection(OrderedDict):
                 self.trim()
             for gbid, gb in self.items():
                 self[gbid].rep_params["soap"] = soapargs
-            #No need to recompute if the store has the result.
+                    #No need to recompute if the store has the result.
             return P
 
-        for gbid, gb in tqdm(self.items()):
-            P[gbid] = gb.soap(cache=False, **soapargs)
+        if multires is not None:
+            for gbid, gb in tqdm(self.items()):
+                soap = []
+                for args in multires:
+                    isoap = gb.soap(cache = False, **args)
+                    soap.append(isoap)
+                res = np.hstack(soap)
+                P[gbid] = res
+        else:
+            for gbid, gb in tqdm(self.items()):
+                P[gbid] = gb.soap(cache=False, **soapargs)
 
         if autotrim:
             self.trim()
 
-    def scatter(self, threads=0, **scatterargs):
+    def scatter(self, density=0.5, Layers=2, SPH_L=6, n_trans=8, n_angle1=8, n_angle2=8,
+                threads=0, multires=None):
         """Calculates the Scatter vectors for each grain boundary.
 
         Args:
@@ -304,8 +325,21 @@ class GrainBoundaryCollection(OrderedDict):
               1 thread will be used.
             scatterargs (dict): key-value pairs of the Scatter parameters (see :module: `SNET`)
         """
-        self.repargs["scatter"] = scatterargs
-        self.store.configure("scatter", **scatterargs)
+        scatterargs =  {
+            "density": density,
+            "Layers": Layers,
+            "SPH_L": SPH_L,
+            "n_trans": n_trans,
+            "n_angle1": n_angle1,
+            "n_angle2": n_angle2
+        }
+
+        if multires is not None:
+            self.repargs["scatter"] = multires
+            self.store.configure("scatter", multires)
+        else:
+            self.repargs["scatter"] = scatterargs
+            self.store.configure("scatter", **scatterargs)
         Scatter = self.store.Scatter
 
         if len(Scatter) == len(self):
@@ -314,30 +348,44 @@ class GrainBoundaryCollection(OrderedDict):
             #No need to recompute if the store has the result.
             return Scatter
 
-        if threads == 0:
-            try:
-                threads = mp.cpu_count()
-            except NotImplementedError:
-                msg.warn("Unable able to determine number of available CPU's, "
-                        "resorting to 1 thread")
-                threads=1
+        #if threads == 0:
+            #try:
+                #threads = mp.cpu_count()
+            #except NotImplementedError:
+                #msg.warn("Unable able to determine number of available CPU's, "
+                        #"resorting to 1 thread")
+                #threads=1
 
-        pbar = tqdm(total=len(self))
-        def _update(*a):
-            """Updates the tqdm bar
-            """
-            pbar.update()
-        pool = mp.Pool(processes=threads)
-        result = {}
-        for gbid, gb in self.items():
-            result[gbid] = pool.apply_async(_scatter_mp, args=(gb, scatterargs ),
-                                            callback=_update)
-        pool.close()
-        pool.join()
+        #pbar = tqdm(total=len(self))
+        #def _update(*a):
+            #"""Updates the tqdm bar
+            #"""
+            #pbar.update()
+        #pool = mp.Pool(processes=threads)
+        #result = {}
 
-        for gbid, res in result.items():
-            Scatter[gbid] = res.get()
-            self[gbid].rep_params["scatter"] = scatterargs
+        #for gbid, gb in self.items():
+            #result[gbid] = pool.apply_async(_scatter_mp, args=(gb, scatterargs ),
+                                            #callback=_update)
+        #pool.close()
+        #pool.join()
+
+        #for gbid, res in result.items():
+            #Scatter[gbid] = res.get()
+            #self[gbid].rep_params["scatter"] = scatterargs
+
+        if multires is not None:
+            for gbid, gb in tqdm(self.items()):
+                scat = []
+                for args in multires:
+                    iscat = gb.scatter(cache = False, **args)
+                    scat.append(iscat)
+                res = np.hstack(scat)
+                Scatter[gbid] = res
+        else:
+            for gbid, gb in tqdm(self.items()):
+                Scatter[gbid] = gb.scatter(cache=False, **scatterargs)
+
 
     @property
     def Scatter(self):

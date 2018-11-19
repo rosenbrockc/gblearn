@@ -167,7 +167,7 @@ class ResultStore(object):
                 if not path.isdir(folder):
                     mkdir(folder)
 
-    def configure(self, rep, **repargs):
+    def configure(self, rep, multires=None, **repargs):
         """Configures the result store to use the specified representation.
 
         Args:
@@ -175,32 +175,51 @@ class ResultStore(object):
             repargs (dict): specific arguments for the representation `rep`.
         """
         assert rep in self.repargs
-        self.repargs[rep].update(repargs)
+        key = ""
+
+        if multires is not None:
+            self.repargs[rep] = multires
+            for args in multires:
+                if any(a not in args for a in self.repstr[rep]):
+                    eargs = ', '.join(["`{}`".format(a) for a in self.repstr[rep]])
+                    emsg = "{} are required arguments for configuring a {} store.".format(eargs, rep)
+                    raise ValueError(emsg)
+                key += self._construct_rep_string(rep, **args) + "___"
+                self._reset_attrs(key, rep)
+            return
+
+
+        self.repargs[rep] = repargs
         if any(a not in self.repargs[rep] for a in self.repstr[rep]):
             eargs = ', '.join(["`{}`".format(a) for a in self.repstr[rep]])
             emsg = "{} are required arguments for configuring a {} store.".format(eargs, rep)
             raise ValueError(emsg)
-        self._reset_attrs(rep)
+        key = self._construct_rep_string(rep, **repargs)
+        self._reset_attrs(key, rep)
+
+    def _construct_rep_string(self, rep, **repargs):
+
+        pmap = {
+            int: ":d",
+            float: ":.2f"
+        }
+        ptypes = [type(repargs[n]) for n in self.repstr[rep]]
+        pstrs = ["{%d%s}" % (i, pmap[ptype]) for i, ptype in enumerate(ptypes)]
+        pvals = [repargs[n] for n in self.repstr[rep]]
+        return '_'.join(pstrs).format(*pvals)
 
     def repattr(self, rep):
         """Returns the name of the attribute for the representation folder string.
         """
         return "{}str".format(rep)
 
-    def _reset_attrs(self, rep):
+    def _reset_attrs(self, key, rep):
         """Resets the strings representing the specified `rep`.
         """
         attrname = self.repattr(rep)
         if hasattr(self, attrname):
             delattr(self, attrname)
-        pmap = {
-            int: ":d",
-            float: ":.2f"
-        }
-        ptypes = [type(self.repargs[rep][n]) for n in self.repstr[rep]]
-        pstrs = ["{%d%s}" % (i, pmap[ptype]) for i, ptype in enumerate(ptypes)]
-        pvals = [self.repargs[rep][n] for n in self.repstr[rep]]
-        setattr(self, attrname, '_'.join(pstrs).format(*pvals))
+        setattr(self, attrname, key)
         self._clobber_reps()
 
     def _clobber_reps(self):
