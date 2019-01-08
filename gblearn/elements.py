@@ -3,14 +3,15 @@ elements.
 """
 from gblearn import msg
 import numpy as np
+from ase import Atoms
 _shells = {}
 """dict: keys are element names, values are lists of shells (in Ang.).
 """
 
 elements = {
-    "Ni": ("fcc", 3.52, 28, [0]),
-    "Cr": ("bcc", 2.91, 24, [0, 1]),
-    "Mg": ("hcp", 3.21, 12, [0, 1])
+    "Ni": ("FaceCenteredCubic", 3.52, 28, [0]),
+    "Cr": ("BodyCenteredCubic", 2.91, 24, [0, 1]),
+    "Mg": ("HexagonalClosedPacked", (3.21, 5.24), 12, [0, 1])
 }
 """dict: keys are element names, values are a tuple of (`str` lattice,
 `float` lattice parameter, `int` element number, `list` basis indices).
@@ -25,10 +26,16 @@ def atoms(element):
     """
     lattice = "unknown"
     if element in elements:
-        import quippy.structures as structures
         lattice, latpar, Z, basis = elements[element]
+        if lattice == "HexagonalClosedPacked":
+            import ase.lattice.hexagonal as structures
+        else:
+            import ase.lattice.cubic as structures
         if hasattr(structures, lattice):
-            return getattr(structures, lattice)(latpar, Z)
+            lat = getattr(structures, lattice)(element, latticeconstant=latpar)
+            a = Atoms(positions=lat.positions, numbers=lat.numbers)
+            a.set_cell(lat.cell)
+            return a
 
     emsg = "Element {} with structure {} is not auto-configurable."
     msg.err(emsg.format(element, lattice))
@@ -73,7 +80,7 @@ def pissnnl(element, lmax=12, nmax=12, rcut=6.0, sigma=0.5, trans_width=0.5):
             radial functions are smoothly transitioned to zero.
     """
     lattice, latpar, Z, basis = elements[element]
-    from gblearn.soap import SOAPCalculator
+    import pycsoap
     SC = SOAPCalculator(rcut, nmax, lmax, sigma, trans_width)
     a = atoms(element)
     return SC.calc(a, Z, basis)
