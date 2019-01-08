@@ -81,6 +81,5 @@ def pissnnl(element, lmax=12, nmax=12, rcut=6.0, sigma=0.5, trans_width=0.5):
     """
     lattice, latpar, Z, basis = elements[element]
     import pycsoap
-    SC = SOAPCalculator(rcut, nmax, lmax, sigma, trans_width)
     a = atoms(element)
     return SC.calc(a, Z, basis)

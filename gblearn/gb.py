@@ -8,17 +8,23 @@ from tqdm import tqdm
 tqdm.monitor_interval = 0
 import multiprocessing as mp
 
+def dissimilarity(a, b):
+    """Computes the SOAP similarity kernel between two SOAP vectors,
+    :math:`d(a,b) = \sqrt{K(a,a)+K(b,b)-2*K(a,b)}`.
+    """
+    return np.sqrt(abs(np.dot(a, a) + np.dot(b, b) - 2*np.dot(a, b)))
+
 def _scatter_mp(gb, scatterargs):
     """Wrapper function to run multiprocessing Scatter
     """
-    return gb.scatter(False, **scatterargs)
+    return gb.scatter(cache=False, **scatterargs)
 
 def _mutlires_scatter_mp(gb, multires):
     """Wrapper funciton to run multires multiprocessing Scatter
     """
     scat = []
     for args in multires:
-        iscat = gb.scatter(cache = False, **args)
+        iscat = gb.scatter(cache=False, **args)
         scat.append(iscat)
     return np.hstack(scat)
 
@@ -358,7 +364,7 @@ class GrainBoundaryCollection(OrderedDict):
             #No need to recompute if the store has the result.
             return Scatter
 
-        if threads == 0:
+        if threads == 0: # pragma: no cover
             try:
                 threads = mp.cpu_count()
             except NotImplementedError:
@@ -557,9 +563,8 @@ class GrainBoundaryCollection(OrderedDict):
 
         #Populate the result dict with the final unique LAEs. We want to store
         #these ordered by similarity to the seed U.
-        from gblearn.soap import S
         from operator import itemgetter
-        K = {u: S(v, self.seed) for u, v in U.items()}
+        K = {u: dissimilarity(v, self.seed) for u, v in U.items()}
         Us = OrderedDict(sorted(K.items(), key=itemgetter(1), reverse=True))
         result["U"] = OrderedDict([(u, U[u]) for u in Us])
         return result
@@ -610,12 +615,11 @@ class GrainBoundaryCollection(OrderedDict):
             dict: keys are `tuple` of (PID, VID) linked to `uni`; values are a
             list of `tuple` (PID, VID) of vectors similar to the key.
         """
-        from gblearn.soap import S
         for i in range(len(NP)):
             Pv = NP[i,:]
             for u in list(uni.keys()):
                 uP = uni[u]
-                K = S(Pv, uP)
+                K = dissimilarity(Pv, uP)
                 if K < eps:
                     #This vector already has at least one possible classification
                     break
@@ -629,7 +633,6 @@ class GrainBoundaryCollection(OrderedDict):
         """Runs through the collection a second time to find the aproximate nearest
         unique LAE identified in :meth:`_uniquify`.
         """
-        from gblearn.soap import S
         result = {}
 
         for u in uni:
@@ -1028,14 +1031,9 @@ class GrainBoundary(object):
             self.rep_params["soap"] = soapargs
 
         if self.P is None:
-            from gblearn.soap import SOAPCalculator
-            calculator = SOAPCalculator(**soapargs)
-
             import pycsoap
             P = []
-            #raw = calculator.calc(self.atoms, self.Z)
 
-            #P = raw["descriptor"]
             self._NP = None
             self._K = None
 
