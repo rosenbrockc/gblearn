@@ -18,8 +18,7 @@ def make_lattice(box):
 	# methodology (look for the section entitled "6.12. Triclinic
 	# (non-orthogonal) simulation boxes") The [a, b, c, alpha, beta, gamma]
 	# vector can be passed to the ase.Atoms object as a definition for the
-	# triclinic box (note that the quippy.Atoms class inherits from
-	# ase.Atoms) Make sure that you note that the data is provided:
+	# triclinic box. Make sure that you note that the data is provided:
 	#
 	# ITEM: BOX BOUNDS xy xz yz ....
 	# xlo_bound xhi_bound xy

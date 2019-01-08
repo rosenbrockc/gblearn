@@ -9,7 +9,7 @@ class XYZParser(object):
         filepath (str): path to the grain boundary XYZ file.
 
     Attributes:
-        atoms (quippy.Atoms): parsed atoms object from which the
+        atoms (ase.Atoms): parsed atoms object from which the
           :class:`GrainBoundary` will be created.
         xyz (numpy.ndarray): xyz positions of the atoms in the XYZ file.
         extras (list): of `str` parameter names with additional, global GB
@@ -27,8 +27,6 @@ class XYZParser(object):
             setattr(self, k, self.atoms.arrays[k])
         for k in self.info:
             setattr(self, k, self.atoms.info[k])
-
-
         self.types = None
         self.box = self.atoms.cell
 
