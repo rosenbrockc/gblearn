@@ -100,6 +100,7 @@ def test_gbids(GBCol):
     col = GBC("homer", gbpath, padding=6.50)
     model = (["ni.p{}.out".format(i) for i in range(453, 460)] +
              ["pissnnl.{}.npy".format(i) for i in range(453, 460)] +
+             ["scatter.{}.npy".format(i) for i in range(453, 460)] +
              ["README.md", "energy.txt"])
     assert list(sorted(col.gbfiles.keys())) == sorted(model)
 
@@ -127,7 +128,8 @@ def test_gbscatter(GBCol):
     GBCol.scatter()
     for gbid in GBCol:
         with GBCol.Scatter[gbid] as stored:
-            model = np.arange(10)
+            Sfile = "scatter.{}.npy".format(gbid)
+            model = np.load(path.join(GBCol.root, Sfile))
             assert np.allclose(stored, model)
 
     #Make sure it doesn't recompute if they're all there.
@@ -138,8 +140,8 @@ def test_gbscattercache(GB9):
     """
     assert GB9.Scatter == None
 
-    GB9.scatter()
-    model = np.arange(10)
+    GB9.scatter(density=0.5, Layers=2, SPH_L=6, n_trans=8, n_angle1=8, n_angle2=8)
+    model = np.load("tests/selection/scatter.9.npy")
     assert np.allclose(GB9.Scatter, model)
 
     #Make sure it doesen't recompute if the value is already cached

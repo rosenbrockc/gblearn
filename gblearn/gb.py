@@ -9,9 +9,18 @@ tqdm.monitor_interval = 0
 import multiprocessing as mp
 
 def _scatter_mp(gb, scatterargs):
-    """Wrapper function to run multiprocessing with Scatter
+    """Wrapper function to run multiprocessing Scatter
     """
     return gb.scatter(False, **scatterargs)
+
+def _mutlires_scatter_mp(gb, multires):
+    """Wrapper funciton to run multires multiprocessing Scatter
+    """
+    scat = []
+    for args in multires:
+        iscat = gb.scatter(cache = False, **args)
+        scat.append(iscat)
+    return np.hstack(scat)
 
 class GrainBoundaryCollection(OrderedDict):
     """Represents a collection of grain boundaries and the unique environments
@@ -268,7 +277,7 @@ class GrainBoundaryCollection(OrderedDict):
         for gbid, gb in self.items():
             gb.trim()
 
-    def soap(self, lmax=10, nmax=10, rcut=5., autotrim=True, multires=None):
+    def soap(self, lmax=10, nmax=10, rcut=5., autotrim=True, multires=None, **soapargs):
         """Calculates the SOAP vector matrix for the atomic environments at
         each grain boundary.
 
@@ -276,11 +285,12 @@ class GrainBoundaryCollection(OrderedDict):
             autotrim (boolean): If true will automatically call :meth: `self.trim`
             soapargs (dict): key-value pairs of the SOAP parameters (see :class: `SOAPCalculator`)
         """
-        soapargs = {
+        defargs = {
             'lmax':lmax,
             'nmax':nmax,
             'rcut': rcut
         }
+        soapargs.update(defargs)
         if multires is not None:
             self.repargs["soap"] = multires
             self.store.configure("soap", multires)
@@ -316,7 +326,7 @@ class GrainBoundaryCollection(OrderedDict):
             self.trim()
 
     def scatter(self, density=0.5, Layers=2, SPH_L=6, n_trans=8, n_angle1=8, n_angle2=8,
-                threads=0, multires=None):
+                threads=0, multires=None, **scatterargs):
         """Calculates the Scatter vectors for each grain boundary.
 
         Args:
@@ -325,7 +335,7 @@ class GrainBoundaryCollection(OrderedDict):
               1 thread will be used.
             scatterargs (dict): key-value pairs of the Scatter parameters (see :module: `SNET`)
         """
-        scatterargs =  {
+        defargs =  {
             "density": density,
             "Layers": Layers,
             "SPH_L": SPH_L,
@@ -333,7 +343,7 @@ class GrainBoundaryCollection(OrderedDict):
             "n_angle1": n_angle1,
             "n_angle2": n_angle2
         }
-
+        scatterargs.update(defargs)
         if multires is not None:
             self.repargs["scatter"] = multires
             self.store.configure("scatter", multires)
@@ -348,43 +358,36 @@ class GrainBoundaryCollection(OrderedDict):
             #No need to recompute if the store has the result.
             return Scatter
 
-        #if threads == 0:
-            #try:
-                #threads = mp.cpu_count()
-            #except NotImplementedError:
-                #msg.warn("Unable able to determine number of available CPU's, "
-                        #"resorting to 1 thread")
-                #threads=1
+        if threads == 0:
+            try:
+                threads = mp.cpu_count()
+            except NotImplementedError:
+                msg.warn("Unable able to determine number of available CPU's, "
+                        "resorting to 1 thread")
+                threads=1
 
-        #pbar = tqdm(total=len(self))
-        #def _update(*a):
-            #"""Updates the tqdm bar
-            #"""
-            #pbar.update()
-        #pool = mp.Pool(processes=threads)
-        #result = {}
-
-        #for gbid, gb in self.items():
-            #result[gbid] = pool.apply_async(_scatter_mp, args=(gb, scatterargs ),
-                                            #callback=_update)
-        #pool.close()
-        #pool.join()
-
-        #for gbid, res in result.items():
-            #Scatter[gbid] = res.get()
-            #self[gbid].rep_params["scatter"] = scatterargs
+        pbar = tqdm(total=len(self))
+        def _update(*a):
+            """Updates the tqdm bar
+            """
+            pbar.update()
+        pool = mp.Pool(processes=threads)
+        result = {}
 
         if multires is not None:
-            for gbid, gb in tqdm(self.items()):
-                scat = []
-                for args in multires:
-                    iscat = gb.scatter(cache = False, **args)
-                    scat.append(iscat)
-                res = np.hstack(scat)
-                Scatter[gbid] = res
+            for gbid, gb in self.items():
+                result[gbid] = pool.apply_async(_mutlires_scatter_mp, args=(gb, multires ),
+                                                callback=_update)
         else:
-            for gbid, gb in tqdm(self.items()):
-                Scatter[gbid] = gb.scatter(cache=False, **scatterargs)
+            for gbid, gb in self.items():
+                result[gbid] = pool.apply_async(_scatter_mp, args=(gb, scatterargs ),
+                                                callback=_update)
+        pool.close()
+        pool.join()
+
+        for gbid, res in result.items():
+            Scatter[gbid] = res.get()
+
 
 
     @property
@@ -668,6 +671,9 @@ class GrainBoundaryCollection(OrderedDict):
         figerprint is the percentage of the GBs local environments that belong to
         each unique LAE type.
 
+        .. note:: the method :meth:`soap` must be called before, otherwise the
+            store might not be configured properly.
+
         Args:
             eps (float): cutoff value for deciding whether two vectors are
               unique.
@@ -899,6 +905,7 @@ class GrainBoundary(object):
             self.Z = np.asarray(Z)
         self.LAEs = None
         self.LER = None
+        self.ASR = None
 
         #For the selection, if padding is present in the dictionary, reduce the
         #padding by half so that all the atoms at the GB get a full SOAP
@@ -1023,8 +1030,12 @@ class GrainBoundary(object):
         if self.P is None:
             from gblearn.soap import SOAPCalculator
             calculator = SOAPCalculator(**soapargs)
-            raw = calculator.calc(self.atoms, self.Z)
-            P = raw["descriptor"]
+
+            import pycsoap
+            P = []
+            #raw = calculator.calc(self.atoms, self.Z)
+
+            #P = raw["descriptor"]
             self._NP = None
             self._K = None
 
