@@ -52,9 +52,9 @@ def test_gb(GB9, tmpdir): # FIXME: Tests are based on Median selction method
     """Tests the basic grain boundary instance attributes and methods
     (i.e., those that don't interact with other modules).
     """
-    assert len(GB9) == 644
+    assert len(GB9) == 2044
     a = GB9.atoms
-    assert a.n == 644
+    assert len(a) == 2044
 
     fxyz = str(tmpdir.join("s9.xyz"))
     GB9.save_xyz(fxyz, "Ni")

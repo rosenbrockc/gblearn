@@ -11,7 +11,7 @@ _shells = {}
 elements = {
     "Ni": ("FaceCenteredCubic", 3.52, 28, [0]),
     "Cr": ("BodyCenteredCubic", 2.91, 24, [0, 1]),
-    "Mg": ("HexagonalClosedPacked", (3.21, 5.24), 12, [0, 1])
+    "Mg": ("HexagonalClosedPacked", {'a':3.21, 'c/a':1.633}, 12, [0, 1])
 }
 """dict: keys are element names, values are a tuple of (`str` lattice,
 `float` lattice parameter, `int` element number, `list` basis indices).

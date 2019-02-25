@@ -33,6 +33,7 @@ setup(name='gblearn',
           "numpy",
           "matplotlib",
           "tqdm",
+          "ase",
           "falconn==1.3.0"
       ],
       packages=['gblearn'],

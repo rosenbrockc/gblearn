@@ -903,7 +903,7 @@ class GrainBoundary(object):
 
         self.Z = None
         if isinstance(Z, int):
-            self.Z = np.full((len(self), 1), Z)
+            self.Z = np.full(len(self), Z)
         else:
             self.Z = np.asarray(Z)
         self.LAEs = None
@@ -1031,8 +1031,9 @@ class GrainBoundary(object):
             self.rep_params["soap"] = soapargs
 
         if self.P is None:
-            import pycsoap
-            P = []
+            from pycsoap.soaplite import SOAP
+            soap_desc = SOAP(atomic_numbers=np.unique(self.Z).tolist(), nmax=soapargs['nmax'], lmax=soapargs['lmax'], rcut=soapargs['rcut'])
+            P = soap_desc.create(self.atoms)
 
             self._NP = None
             self._K = None
@@ -1059,9 +1060,9 @@ class GrainBoundary(object):
             self.Scatter = None
             self.rep_params["scatter"] = scatterargs
 
-        import SNET
+        import snet
         if self.Scatter is None:
-            Scatter = SNET.scatlite_features(self.xyz, self.Z, self.lattice, **scatterargs)
+            Scatter = snet.scatlite_features(self.xyz, self.Z, self.lattice, **scatterargs)
             if cache:
                 self.Scatter = Scatter
             else:
