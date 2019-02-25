@@ -14,7 +14,7 @@ def GBCol(tmpdir):
     result = GBC("homer", gbpath, root, r"ni.p(?P<gbid>\d+).out", padding=6.50)
 
     from gblearn.gb import GrainBoundary
-    result.load(Z=28, method="cna_z", pattr="c_cna")
+    result.load(Z=28, method="cna", pattr="c_cna")
     for gbid, gb in result.items():
         assert isinstance(gb, GrainBoundary)
 
@@ -27,7 +27,9 @@ def GB9(request):
     """
     from gblearn.lammps import Timestep
     p9 = Timestep("tests/selection/ni.p9.out")
-    return p9.gb(28)
+    result = p9.gb(28, coord=0)
+    result.rep_params["soap"] = {}
+    return result
 
 def test_properties(GBCol):
     """Tests the loading and reading of properties for a GB collection.
@@ -46,18 +48,18 @@ def test_K(GB9):
     """
     K = GB9.K
 
-def test_gb(GB9, tmpdir):
+def test_gb(GB9, tmpdir): # FIXME: Tests are based on Median selction method
     """Tests the basic grain boundary instance attributes and methods
     (i.e., those that don't interact with other modules).
     """
-    assert len(GB9) == 644
+    assert len(GB9) == 2044
     a = GB9.atoms
-    assert a.n == 644
+    assert len(a) == 2044
 
     fxyz = str(tmpdir.join("s9.xyz"))
     GB9.save_xyz(fxyz, "Ni")
 
-    from quippy import Atoms
+    from ase import Atoms
     A = Atoms(fxyz)
     B = Atoms("tests/gb/s9.xyz")
     assert A.equivalent(B)
@@ -98,6 +100,7 @@ def test_gbids(GBCol):
     col = GBC("homer", gbpath, padding=6.50)
     model = (["ni.p{}.out".format(i) for i in range(453, 460)] +
              ["pissnnl.{}.npy".format(i) for i in range(453, 460)] +
+             ["scatter.{}.npy".format(i) for i in range(453, 460)] +
              ["README.md", "energy.txt"])
     assert list(sorted(col.gbfiles.keys())) == sorted(model)
 
@@ -125,7 +128,8 @@ def test_gbscatter(GBCol):
     GBCol.scatter()
     for gbid in GBCol:
         with GBCol.Scatter[gbid] as stored:
-            model = np.arange(10)
+            Sfile = "scatter.{}.npy".format(gbid)
+            model = np.load(path.join(GBCol.root, Sfile))
             assert np.allclose(stored, model)
 
     #Make sure it doesn't recompute if they're all there.
@@ -136,8 +140,8 @@ def test_gbscattercache(GB9):
     """
     assert GB9.Scatter == None
 
-    GB9.scatter()
-    model = np.arange(10)
+    GB9.scatter(density=0.5, Layers=2, SPH_L=6, n_trans=8, n_angle1=8, n_angle2=8)
+    model = np.load("tests/selection/scatter.9.npy")
     assert np.allclose(GB9.Scatter, model)
 
     #Make sure it doesen't recompute if the value is already cached
@@ -244,7 +248,7 @@ def test_others(GBCol):
     _preload_U(GBCol, eps)
     seed = np.loadtxt(path.join(reporoot, "tests", "elements", "Ni.pissnnl_seed.txt"))
     GBCol.seed = seed
-    GBCol.load(name="other", fname='ni.p453.out', Z=28, method="cna_z", pattr="c_cna")
+    GBCol.load(name="other", fname='ni.p453.out', Z=28, method="cna", pattr="c_cna")
     LER = GBCol.analyze_other("other", "LER", eps=eps)
     model = np.load(path.join(reporoot, "tests", "unique", "LER.pkl"))
     assert np.allclose(LER, model[0])

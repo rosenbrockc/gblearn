@@ -15,7 +15,7 @@ def store(tmpdir):
     root = tmpdir.join("rndstore")
     res = ResultStore(range(1,8), str(root))
     res.configure("soap", lmax=8, nmax=8, rcut=4.3)
-    res.configure("scatter", Layers=2, SPH_L=6, n_trans=8, n_angle1=8, n_angle2=8)
+    res.configure("scatter", density=0.5, Layers=2, SPH_L=6, n_trans=8, n_angle1=8, n_angle2=8)
     return res
 
 @pytest.fixture
@@ -24,7 +24,7 @@ def memstore():
     """
     res = ResultStore(range(1,8))
     res.configure("soap", lmax=8, nmax=8, rcut=4.3)
-    res.configure("scatter", Layers=2, SPH_L=6, n_trans=8, n_angle1=8, n_angle2=8)
+    res.configure("scatter", density=0.5, Layers=2, SPH_L=6, n_trans=8, n_angle1=8, n_angle2=8)
     return res
 
 def test_errors():
@@ -102,9 +102,9 @@ def test_scattermem(memstore):
         assert np.allclose(memstore.Scatter[gbid], Scatters[gbid])
 
     #Now, set the Scatter args and make sure that the rep was clobbered.
-    memstore.configure("scatter", Layers=2, SPH_L=10, n_trans=8, n_angle1=8, n_angle2=8)
+    memstore.configure("scatter",density=0.5, Layers=2, SPH_L=10, n_trans=8, n_angle1=8, n_angle2=8)
     assert memstore.Scatter == {}
-    assert getattr(memstore,"scatterstr") == "2_10_8_8_8"
+    assert getattr(memstore,"scatterstr") == "0.50_2_10_8_8_8"
 
 def test_scatter(store):
     """Tests the saving and restoration of random 2x2 Scatter matrices
@@ -121,7 +121,7 @@ def test_scatter(store):
 
     #Check that the directory has the relevant files and that they
     #don't have zero size.
-    target = path.join(store.root, "scatter", "Scatter", "2_6_8_8_8")
+    target = path.join(store.root, "scatter", "Scatter", "0.50_2_6_8_8_8")
     assert path.isdir(target)
     for gbid in store.gbids:
         gbpath = path.join(target, "{}.npy".format(gbid))
@@ -130,7 +130,7 @@ def test_scatter(store):
     #Ask for a new store so that we can load the arrays from disk and
     #check their equality.
     nstore = ResultStore(range(1, 8), store.root)
-    nstore.configure("scatter", Layers=2, SPH_L=6, n_trans=8, n_angle1=8, n_angle2=8)
+    nstore.configure("scatter", density=0.5, Layers=2, SPH_L=6, n_trans=8, n_angle1=8, n_angle2=8)
     assert len(nstore.gbids) == len(nstore.Scatter)
     for gbid in nstore.gbids:
         with nstore.Scatter[gbid] as stored:
