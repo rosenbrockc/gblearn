@@ -2,11 +2,31 @@
 """
 import numpy as np
 from collections import OrderedDict
-from gblearn import msg
+from gblearn import msg, lae
 from os import path
 from tqdm import tqdm
 tqdm.monitor_interval = 0
-from quippy.farray import FortranArray
+import multiprocessing as mp
+
+def dissimilarity(a, b):
+    """Computes the SOAP similarity kernel between two SOAP vectors,
+    :math:`d(a,b) = \sqrt{K(a,a)+K(b,b)-2*K(a,b)}`.
+    """
+    return np.sqrt(abs(np.dot(a, a) + np.dot(b, b) - 2*np.dot(a, b)))
+
+def _scatter_mp(gb, scatterargs):
+    """Wrapper function to run multiprocessing Scatter
+    """
+    return gb.scatter(cache=False, **scatterargs)
+
+def _mutlires_scatter_mp(gb, multires):
+    """Wrapper funciton to run multires multiprocessing Scatter
+    """
+    scat = []
+    for args in multires:
+        iscat = gb.scatter(cache=False, **args)
+        scat.append(iscat)
+    return np.hstack(scat)
 
 class GrainBoundaryCollection(OrderedDict):
     """Represents a collection of grain boundaries and the unique environments
@@ -35,7 +55,8 @@ class GrainBoundaryCollection(OrderedDict):
           reverse the order.
         seed (numpy.ndarray): seed SOAP vector for calculating unique LAEs. This
           is usually the SOAP vector of the perfect bulk crystal in the GB.
-        soapargs (dict): key-value pairs for constructing the SOAP descriptor.
+        padding (float): amount of perfect bulk to include as padding around
+          the grain boundary before the representation is made.
 
     Attributes:
         name (str): identifier for this collection.
@@ -53,12 +74,18 @@ class GrainBoundaryCollection(OrderedDict):
           values are a `dict` having linked keys with :attr:`unique` and values
           a list of `aid` in the GB whose LAEs that are equivalent to the unique
           LAE represented by the key.
-        soapargs (dict): key-value pairs for constructing the SOAP descriptor.
+        repargs (dict): keys are the representation name, while the values are
+          the parameters for the
         properties (dict): keys are property names, values are `dict` keyed by
           `gbid` with values being the property value for each GB.
+        LAE (dict): keys are int values corresponding LAE id, and the values are
+          LAE objects corresponding to the id.
+        others (dict): keys are ids while values are Grain Boundary objects not
+           belonging to the original collection.
+        axis (int): the dimension in which the Grain Boundary was parsed
     """
     def __init__(self, name, root, store=None, rxgbid=None, sortkey=None,
-                 reverse=False, seed=None, **soapargs):
+                 reverse=False, seed=None, padding=10.0):
         super(GrainBoundaryCollection, self).__init__()
         self.name = name
         self.root = path.abspath(path.expanduser(root))
@@ -77,8 +104,11 @@ class GrainBoundaryCollection(OrderedDict):
         self.unique = {}
         self.equivalent = {}
         self.properties = {}
+        self.repargs = {}
+        self.LAE = {}
         self.seed = seed
-        self.soapargs = soapargs
+        self.others = {}
+        self.axis = None
 
         if rxgbid is not None:
             import re
@@ -89,7 +119,9 @@ class GrainBoundaryCollection(OrderedDict):
         self._find_gbs()
 
         from gblearn.io import ResultStore
-        self.store = ResultStore(self.gbfiles.keys(), store, **soapargs)
+        self.store = ResultStore(self.gbfiles.keys(), store, padding=padding)
+        #self.mutlistore = ResultStore(self.gbfiles.keys(), "multires_"+ store, padding=padding)
+        self.padding = padding
 
     def get_property(self, name):
         """Builds a value vector for a property in this collection.
@@ -105,11 +137,7 @@ class GrainBoundaryCollection(OrderedDict):
             scalar = False
             for gb in self.values():
                 if hasattr(gb, name):
-                    vi = getattr(gb, name)
-                    if isinstance(vi, FortranArray):
-                        values.append(np.array(vi.T))
-                    else: # pragma: no cover
-                        values.append(vi)
+                    values.append(getattr(gb, name))
                 elif name in gb.params:
                     values.append(gb.params[name])
                     scalar = True
@@ -188,7 +216,8 @@ class GrainBoundaryCollection(OrderedDict):
 
         msg.info("Found {} grain boundaries.".format(len(self.gbfiles)))
 
-    def load(self, parser=None, autotrim=True, **kwargs):
+    def load(self, parser=None, custids=None, name=None,
+             fname=None, **selectargs):
         """Loads the GBs from their files to create :class:`GrainBoundary`
         objects.
 
@@ -198,26 +227,54 @@ class GrainBoundaryCollection(OrderedDict):
           :class:`GrainBoundary` instances, in the sorted order that they were
           discovered.
 
+        .. note:: If 'coord' is not given as a selectarg, load will determine
+          and use the coordinate along the longest dimension.
+
         Args:
             parser: object used to parse the raw GB file. Defaults to
               :class:`gblearn.lammps.Timestep`. Class should have a method `gb`
               that constructs a :class:`GrainBoundary` instance.
-            kwargs (dict): keyword arguments passed to the `gb` method of
-             `parser`. For example, see :meth:`gblearn.lammps.Timestep.gb`.
+            custids (dict or str): if `dict`, keys are `str` GB ids and values
+              are the custom selection method to use. If `str`, then a TSV file
+              where the first column is GB id and the second is the custom
+              selection method to use.
+            name (str): unique id of external grain boundary
+            fname (str): filenme to the grain boundary file
+                    ..warning:: the filenmae automattically adds the root path
+            selectargs (dict): keyword arguments passed to `parser` when
+              isolating grain boundary atoms.
         """
         if parser is None:
             from gblearn.lammps import Timestep
             parser = Timestep
-        kwargs["soapargs"] = self.soapargs
-        kwargs["padding"] = self.soapargs["rcut"]*2
+
+        if custids is not None and isinstance(custids, six.string_types):
+            rawids = np.loadtxt(custids, dtype=str).tolist()
+            custids = {g: m for g, m in enumerate(rawids)}
+
+        if fname is not None:
+            if name is None:
+                msg.info("Name not specified, using {} as unique identifier".format(fname))
+                name = fname
+            gbpath = path.join(self.root, fname)
+            self.others[name] = self._parse_gb(gbpath, parser, **selectargs)
+            return
 
         for gbid, gbpath in tqdm(self.gbfiles.items()):
-            t = parser(gbpath)
-            gb = t.gb(**kwargs)
-            self[gbid] = gb
+            if custids is not None and gbid in custids:
+                selectargs["method"] = custids[gbid]
+            self[gbid] = self._parse_gb(gbpath, parser, **selectargs)
 
-        if autotrim and len(self.store.P) > 0: # pragma: no cover
-            self.trim()
+    def _parse_gb(self, gbpath, parser, **selectargs):
+        """Parses a given file into a :class: `GrainBoundary` object
+        """
+        t = parser(gbpath)
+        self.axis = selectargs.get('coord', None)
+        if self.axis is None:
+            dif = t.xyz.max(axis=0) - t.xyz.min(axis=0)
+            self.axis = dif.argmax()
+            selectargs['coord'] = self.axis
+        return t.gb(padding=self.padding, **selectargs)
 
     def trim(self):
         """Removes the atoms from each grain boundary that were included as
@@ -226,33 +283,118 @@ class GrainBoundaryCollection(OrderedDict):
         for gbid, gb in self.items():
             gb.trim()
 
-    def soap(self, autotrim=True):
+    def soap(self, lmax=10, nmax=10, rcut=5., autotrim=True, multires=None, **soapargs):
         """Calculates the SOAP vector matrix for the atomic environments at
         each grain boundary.
+
+        Args:
+            autotrim (boolean): If true will automatically call :meth: `self.trim`
+            soapargs (dict): key-value pairs of the SOAP parameters (see :class: `SOAPCalculator`)
         """
+        defargs = {
+            'lmax':lmax,
+            'nmax':nmax,
+            'rcut': rcut
+        }
+        soapargs.update(defargs)
+        if multires is not None:
+            self.repargs["soap"] = multires
+            self.store.configure("soap", multires)
+            for args in multires:
+                assert abs(args["rcut"] - self.padding/2.) < 1e-8
+        else:
+            self.repargs["soap"] = soapargs
+            self.store.configure("soap", **soapargs)
+            assert abs(soapargs["rcut"] - self.padding/2.) < 1e-8
         P = self.store.P
 
         if len(P) == len(self):
-            #No need to recompute if the store has the result.
+            if autotrim:
+                self.trim()
+            for gbid, gb in self.items():
+                self[gbid].rep_params["soap"] = soapargs
+                    #No need to recompute if the store has the result.
             return P
 
-        for gbid, gb in tqdm(self.items()):
-            P[gbid] = gb.soap(cache=False)
+        if multires is not None:
+            for gbid, gb in tqdm(self.items()):
+                soap = []
+                for args in multires:
+                    isoap = gb.soap(cache = False, **args)
+                    soap.append(isoap)
+                res = np.hstack(soap)
+                P[gbid] = res
+        else:
+            for gbid, gb in tqdm(self.items()):
+                P[gbid] = gb.soap(cache=False, **soapargs)
 
         if autotrim:
             self.trim()
 
-    def scatter(self):
+    def scatter(self, density=0.5, Layers=2, SPH_L=6, n_trans=8, n_angle1=8, n_angle2=8,
+                threads=0, multires=None, **scatterargs):
         """Calculates the Scatter vectors for each grain boundary.
+
+        Args:
+            threads (int): the number of threads to use. If 0, the number of cores
+              will try to be determined from multiprocessing.cpu_count(). If this fails
+              1 thread will be used.
+            scatterargs (dict): key-value pairs of the Scatter parameters (see :module: `SNET`)
         """
+        defargs =  {
+            "density": density,
+            "Layers": Layers,
+            "SPH_L": SPH_L,
+            "n_trans": n_trans,
+            "n_angle1": n_angle1,
+            "n_angle2": n_angle2
+        }
+        scatterargs.update(defargs)
+        if multires is not None:
+            self.repargs["scatter"] = multires
+            self.store.configure("scatter", multires)
+        else:
+            self.repargs["scatter"] = scatterargs
+            self.store.configure("scatter", **scatterargs)
         Scatter = self.store.Scatter
 
         if len(Scatter) == len(self):
+            for gbid, gb in self.items():
+               self[gbid].rep_params["scatter"] = scatterargs
             #No need to recompute if the store has the result.
             return Scatter
 
-        for gbid, gb in tqdm(self.items()):
-            Scatter[gbid] = gb.scatter(cache=False)
+        if threads == 0: # pragma: no cover
+            try:
+                threads = mp.cpu_count()
+            except NotImplementedError:
+                msg.warn("Unable able to determine number of available CPU's, "
+                        "resorting to 1 thread")
+                threads=1
+
+        pbar = tqdm(total=len(self))
+        def _update(*a):
+            """Updates the tqdm bar
+            """
+            pbar.update()
+        pool = mp.Pool(processes=threads)
+        result = {}
+
+        if multires is not None:
+            for gbid, gb in self.items():
+                result[gbid] = pool.apply_async(_mutlires_scatter_mp, args=(gb, multires ),
+                                                callback=_update)
+        else:
+            for gbid, gb in self.items():
+                result[gbid] = pool.apply_async(_scatter_mp, args=(gb, scatterargs ),
+                                                callback=_update)
+        pool.close()
+        pool.join()
+
+        for gbid, res in result.items():
+            Scatter[gbid] = res.get()
+
+
 
     @property
     def Scatter(self):
@@ -264,6 +406,23 @@ class GrainBoundaryCollection(OrderedDict):
                      ":meth:`scatter`.")
 
         return result
+
+    @property
+    def SM(self):
+        """Returns the Scatter feature matrix based on the current Scatter parameters
+        """
+        Scatter = self.Scatter
+        if len(Scatter) == 0:
+            return
+        size = 0;
+        with Scatter[self.keys()[0]] as scat:
+            size = len(scat)
+        matrix = np.zeros((len(self), size))
+        for id, gbid in enumerate(self):
+            with Scatter[gbid] as scat:
+                matrix[id] = scat
+
+        return matrix
 
     @property
     def P(self):
@@ -316,22 +475,33 @@ class GrainBoundaryCollection(OrderedDict):
             U[eps] = result
             self.store.U = U
 
-	#Just grab the atom ids from each list and then assign that
-	#particular atom the corresponding unique signature. Note that
-	#each unique signature atom list has the unique signature as the
-	#first element, which is why the range starts at 1.
-    #This also populates the atoms objects with their corresponding LAE numbers
         for gbid in self.gbfiles:
             LAEs = result["GBs"][gbid]
-            for u, elist in LAEs.items():
-                for PID, VID in elist[1:]:
-                    self[gbid].LAEs[VID] = u
-            LAE = [result["U"].keys().index(x) for x in self[gbid].LAEs]
-            self[gbid].atoms.add_property("LAE",LAE)
+            self._assign(self[gbid], LAEs, result["U"])
+
+    #Fills the GrainBoundaryCollection LAE property with the LAEs
+        for id, soap in enumerate(result["U"].values()):
+            self.LAE[id] = lae.LAE(id, soap)
 
         return result
 
-    def uniquify(self, eps, threads=0, probes=50):
+    def _assign(self, gb, LAEs, U):
+        """Assigns and fills LAEs for the specified Grain Boundary
+        """
+    	#Just grab the atom ids from each list and then assign that
+	    #particular atom the corresponding unique signature. Note that
+	    #each unique signature atom list has the unique signature as the
+	    #first element, which is why the range starts at 1.
+        #This also populates the atoms objects with their corresponding LAE numbers
+
+        for u, elist in LAEs.items():
+            for PID, VID in elist[1:]:
+                gb.LAEs[VID] = u
+        #LAE = [U.keys().index(x) for x in gb.LAEs]
+        #gb.atoms.add_property("LAE",LAE)
+
+
+    def uniquify(self, eps, **kwargs):
         """Extracts all the unique LAEs in the entire GB system using the
         specified `epsilon` similarity value.
 
@@ -347,13 +517,8 @@ class GrainBoundaryCollection(OrderedDict):
             eps (float): similarity scores below this value are considered
               identical. Two actually identical GBs will have a similarity score
               of `0` by this metric, so smaller is more similar.
-            threads (int): the number of threads desired to setup the
-              Locality Sensitive Hash hash tables. If the number of threads is 0
-              the maximum number of available hardware threads found will be used
-              up to the number of hash tables 10. 0 is selected by default.
-            probes (int): the number of probes each query will make over all the
-              hash tables. (The higher number of probes the more accurate the search,
-              but the longer it will take [Needs Verification]).
+            kwargs (dict): Hold the values that are passed falconn to setup the
+             hash tables in :meth:`setup_hash_tables`.
 
         Returns:
             dict: with keys `U` and `GBs`. The `U` key has a dictionary of
@@ -381,13 +546,7 @@ class GrainBoundaryCollection(OrderedDict):
 
         #Create the hash tables and the query object needed for the LSH algorithm
         used = {k: False for k in U}
-        import falconn
-        params = falconn.get_default_parameters(len(U), len(self.seed))
-        params.num_setup_threads = threads
-        table = falconn.LSHIndex(params)
-        table.setup(np.vstack(U.values()))
-        query = table.construct_query_object()
-        query.set_num_probes(probes)
+        query = self.setup_hash_tables(np.vstack(U.values()), **kwargs)
 
         #With the alogrithm setup loop through all the vectors to find its
         #approximate nearest unique neighbor
@@ -404,19 +563,44 @@ class GrainBoundaryCollection(OrderedDict):
 
         #Populate the result dict with the final unique LAEs. We want to store
         #these ordered by similarity to the seed U.
-        from gblearn.soap import S
         from operator import itemgetter
-        K = {u: S(v, self.seed) for u, v in U.items()}
+        K = {u: dissimilarity(v, self.seed) for u, v in U.items()}
         Us = OrderedDict(sorted(K.items(), key=itemgetter(1), reverse=True))
         result["U"] = OrderedDict([(u, U[u]) for u in Us])
         return result
+
+    def setup_hash_tables(self, data, threads=0, probes=50):
+        """Creates hash tables for an efficient approximate nearest neighbor
+        search
+
+        Args:
+            data (numpy.ndarray): matrix where each row is a unique vector
+            threads (int): the number of threads desired to setup the
+                 Locality Sensitive Hash hash tables. If the number of threads is 0
+                 the maximum number of available hardware threads found will be used
+                 up to the number of hash tables 10. 0 is selected by default.
+            probes (int): the number of probes each query will make over all the
+                 hash tables. (The higher number of probes the more accurate the search,
+                 but the longer it will take [Needs Verification]).
+
+        Returns
+            query object from falconn to search the created table.
+        """
+        import falconn
+        params = falconn.get_default_parameters(data.shape[0], len(self.seed))
+        params.num_setup_threads = threads
+        table = falconn.LSHIndex(params)
+        table.setup(data)
+        query = table.construct_query_object()
+        query.set_num_probes(probes)
+        return query
 
     def _uniquify(self, NP, gbid, uni, eps):
         """Runs the first unique identification pass through the collection. Calculates
         the unique SOAP vectors in the given GB relative to the current set of
         unique ones.
 
-        .. note:: This version was includes refactoring by Jonathan Priedemann.
+        .. note:: This version includes refactoring by Jonathan Priedemann.
 
         Args:
             NP (numpy.ndarray): matrix of SOAP vectors for the grain boundary.
@@ -431,12 +615,11 @@ class GrainBoundaryCollection(OrderedDict):
             dict: keys are `tuple` of (PID, VID) linked to `uni`; values are a
             list of `tuple` (PID, VID) of vectors similar to the key.
         """
-        from gblearn.soap import S
         for i in range(len(NP)):
             Pv = NP[i,:]
             for u in list(uni.keys()):
                 uP = uni[u]
-                K = S(Pv, uP)
+                K = dissimilarity(Pv, uP)
                 if K < eps:
                     #This vector already has at least one possible classification
                     break
@@ -446,11 +629,10 @@ class GrainBoundaryCollection(OrderedDict):
                 #deletes the original array
                 uni[(gbid, i)] = np.copy(Pv)
 
-    def _classify(self, NP, PID, uni, query, used):
+    def _classify(self, NP, PID, uni, query, used=None):
         """Runs through the collection a second time to find the aproximate nearest
         unique LAE identified in :meth:`_uniquify`.
         """
-        from gblearn.soap import S
         result = {}
 
         for u in uni:
@@ -460,7 +642,8 @@ class GrainBoundaryCollection(OrderedDict):
             Pv = NP[i,:]
             neighbor = uni.keys()[query.find_nearest_neighbor(Pv)]
             result[neighbor].append((PID, i))
-            used[neighbor] = True
+            if used is not None:
+                used[neighbor] = True
 
         return result
 
@@ -491,6 +674,9 @@ class GrainBoundaryCollection(OrderedDict):
         figerprint is the percentage of the GBs local environments that belong to
         each unique LAE type.
 
+        .. note:: the method :meth:`soap` must be called before, otherwise the
+            store might not be configured properly.
+
         Args:
             eps (float): cutoff value for deciding whether two vectors are
               unique.
@@ -512,17 +698,100 @@ class GrainBoundaryCollection(OrderedDict):
             #Next, loop over each GB and count how many of each kind it has.
             result = np.zeros((len(self), len(U["U"])))
             for gbi, gbid in enumerate(self):
-                for ui, uid in enumerate(U["U"]):
-                    result[gbi,ui] = self[gbid].LAEs.count(uid)
-                #Normalize by the total number of atoms of each type
-                N = np.sum(result[gbi,:])
-                assert N == len(self[gbid])
-                result[gbi,:] /= N
+                result[gbi] = self._LER(self[gbid], U["U"], False)[:]
 
             LER[eps] = result
             self.store.LER = LER
 
         return result
+
+    def _LER(self, gb, U, cache=True):
+        """Calculates the LER for the specified Grain Boundary
+
+            Args:
+                gb (GrainBoundary): an instance of class:`GrainBoundary` on which to
+                    calculate the LER
+                U (dict): keys are the unique vector ids in the form (gbid, pid),
+                    while the values are the actual unique vectors
+                cache (boolean): set to false if the result should not be cached in memory
+        """
+        result = np.zeros(len(U))
+        for ui, uid in enumerate(U):
+            result[ui] = gb.LAEs.count(uid)
+        #Normalize by the total number of atoms of each type
+        N = np.sum(result[:])
+        assert N == len(gb)
+        result[:] /= N
+        if cache:
+            gb.LER = result
+        return result
+
+    def analyze_other(self, name, analysis, **kwargs):
+        """Analyzies the given GB based on the given anlysis argument
+
+        Args:
+            name (string): the id of the grain boundary to analyze, which
+                corresponds to the key of the GB in the others dictionary
+            analysis (string): the analysis desired. This must be from the list
+                (LER, ASR, Scatter), and the necessary analysis must also be
+                done for the GrainBoundaryCollection.
+            kwargs (dict): any additional arguments needed for the analysis
+                requested
+
+            Returns:
+                The analysis given by the specified method.
+        """
+        analysismap = {
+            "LER": self._other_LER,
+            "ASR": self._other_ASR,
+            "Scatter": self._other_Scatter
+        }
+        return analysismap[analysis](name, self.others[name], **kwargs)
+
+    def _other_LER(self, name, gb, cache=True, **kwargs):
+        """Analyzies the Given GB based on LER
+
+        .. note: this will automatically use the soap args stored in self
+
+        Args:
+            name (string): the unique id of the GrainBoundary
+            gb (GrainBoundary): an instance of class:`GrainBoundary` on which to
+              perform the LER analysis.
+            eps (float): `eps` value used in finding the set of unique LAEs in
+              the GB system.
+            cache (boolean): set to false if the LER should not be stored in the
+               class:`GrainBoundary` object itself as gb.LER
+             kwargs (dict): the arguments sent to meth:`setup_hash_tables` and the
+               epsilon value
+
+        Returns:
+            The LER of the specified GrainBoundary
+
+        """
+        if 'eps' not in kwargs:
+            raise ValueError("Epsilon is required for LER analysis")
+        eps = kwargs.pop('eps')
+        gb.soap(**self.repargs["soap"])
+        gb.trim()
+        U = self.U(eps)['U']
+
+        query = self.setup_hash_tables(np.vstack(U.values()), **kwargs)
+        LAEs = self._classify(gb.P, name, U, query)
+        self._assign(gb, LAEs, U)
+
+        return self._LER(gb, U)
+
+    def _other_ASR(self, name, gb, cache=True, **kwargs):
+        """Analyzies the given GrainBoundary with the ASR representation
+
+        """
+        raise NotImplementedError()
+
+    def _other_Scatter(self, name, gb, cache=True, **kwargs):
+        """Analyzies the given GrainBoundary with the Scattering Transformation
+
+        """
+        raise NotImplementedError()
 
     def feature_map_file(self, eps):
         """Returns the full path to the feature map file.
@@ -598,9 +867,8 @@ class GrainBoundary(object):
           the lattice.
         params (dict): key-value pairs that represent *scalar* parameters that
           apply to the whole grain boundary.
-        soapargs (dict): keyword arguments to pass to the constructor of the
-          :class:`~gblearn.soap.SOAPCalculator` that will be used to calculate
-          the `P` matrix for this GB.
+        padding (float): amount of perfect bulk to include as padding around
+          the grain boundary before the representation is made.
 
     Attributes:
         lattice (numpy.ndarray): array of lattice vector for the grain boundary
@@ -608,20 +876,23 @@ class GrainBoundary(object):
           the outermost atoms of the GB slice.
         calculator (~gblearn.soap.SOAPCalculator): calculator for getting the
           SOAP vector matrix for this GB.
-        Z (int or list): element code(s) for the atomic species.
+        Z (list): element codes for the atomic species.
         P (numpy.ndarray): SOAP vector matrix; shape `(N, S)`, where `N` is the
           number of atoms at the boundary and `S` is the dimensionality of the
           SOAP vector space (which varies with SOAP parameters).
         LAEs (list): of tuple with `(PID, VID)` corresponding to the unique LAE
           number in the collection's global unique set.
+        LER (numpy.ndarray): columns are the percentage of unique
+          local environments of each type in the GB.
     """
     def __init__(self, xyz, types, box, Z, extras=None, selectargs=None,
-                 makelat=True, params=None, **soapargs):
-        from gblearn.soap import SOAPCalculator
+                 makelat=True, params=None, padding=10.0):
+
         from gblearn.lammps import make_lattice
         self.xyz = xyz.copy()
         self.types = types
         self.params = params.copy() if params is not None else {}
+        self.rep_params = {"soap":{}, "scatter":{}}
 
         if makelat:
             self.box = box
@@ -630,26 +901,25 @@ class GrainBoundary(object):
             self.box = None
             self.lattice = box.copy()
 
-        self.calculator = SOAPCalculator(**soapargs)
-        self.Z = Z
+        self.Z = None
+        if isinstance(Z, int):
+            self.Z = np.full(len(self), Z)
+        else:
+            self.Z = np.asarray(Z)
         self.LAEs = None
+        self.LER = None
+        self.ASR = None
 
         #For the selection, if padding is present in the dictionary, reduce the
         #padding by half so that all the atoms at the GB get a full SOAP
         #environment.
         self.selectargs = selectargs
-        if "padding" in self.selectargs:
-            self.selectargs["padding"] /= 2
-
+        self.padding = padding/2.
         if extras is not None:
             self.extras = extras.keys()
             for k, v in extras.items():
                 if not hasattr(self, k):
-                    target = v.copy()
-                    if isinstance(target, FortranArray):
-                        setattr(self, k, v.copy().T)
-                    else:
-                        setattr(self, k, v.copy())
+                    setattr(self, k, v)
                 else:
                     msg.warn("Cannot set extra attribute `{}`; "
                              "already exists.".format(k))
@@ -680,7 +950,7 @@ class GrainBoundary(object):
         norm.
         """
         if self._NP is None:
-            P = self.soap()
+            P = self.soap(self.rep_params["soap"])
             pself = np.array([np.dot(p, p) for p in P])
             self._NP = np.array([P[i,:]/np.sqrt(pself[i])
                                  for i in range(len(P))
@@ -709,9 +979,7 @@ class GrainBoundary(object):
         import gblearn.selection as sel
         from functools import partial
         methmap = {
-            "median": sel.median,
-            "cna": partial(sel.cna_max, coord=0),
-            "cna_z": partial(sel.cna_max, coord=2)
+            "cna": partial(sel.cna_max, coord=self.selectargs['coord'])
         }
         #Use the same selection parameters that were used to construct
         #the GB in the first place. However, the padding parameter will
@@ -720,7 +988,8 @@ class GrainBoundary(object):
         subsel = self.selectargs["method"]
         if subsel in methmap:
             ids = methmap[subsel](self.xyz, getattr(self, subpar),
-                                  types=self.types, **self.selectargs)
+                                  types=self.types, padding=self.padding,
+                                  **self.selectargs)
             return ids
 
     def trim(self, ids=None):
@@ -748,23 +1017,31 @@ class GrainBoundary(object):
             if hasattr(current, "__getitem__"):
                 setattr(self, k, np.array(current)[ids])
 
-    def soap(self, cache=True):
+    def soap(self, cache=True, **soapargs):
         """Calculates the SOAP vector matrix for the atomic environments at the
         grain boundary.
 
         Args:
             cache (bool): when True, cache the resulting SOAP matrix.
+            soapargs (dict): soap parameters to use in extracting the
+              representation.
         """
+        if soapargs != self.rep_params["soap"]:
+            self.P = None
+            self.rep_params["soap"] = soapargs
+
         if self.P is None:
-            raw = self.calculator.calc(self.atoms, self.Z)
-            P = raw["descriptor"]
+            from pycsoap.soaplite import SOAP
+            soap_desc = SOAP(atomic_numbers=np.unique(self.Z).tolist(), nmax=soapargs['nmax'], lmax=soapargs['lmax'], rcut=soapargs['rcut'])
+            P = soap_desc.create(self.atoms)
+
             self._NP = None
             self._K = None
 
-            if "padding" in self.selectargs:
-                ids = self.gbids
-                if ids is not None:
-                    P = P[ids,:]
+            #Padding is required now for all Grain Boundaries.
+            ids = self.gbids
+            if ids is not None:
+                P = P[ids,:]
 
             if cache:
                 self.P = P
@@ -773,23 +1050,19 @@ class GrainBoundary(object):
 
         return self.P
 
-    def scatter(self, cache=True):
+    def scatter(self, cache=True, **scatterargs):
         """Calculates the Scatter vector for the GB.
 
         Args:
             cache (bool): when True, cache the resulting Scatter vector.
         """
-        if self.Scatter is None:
-            import os
-            tempfile = 'temp.xyz'
-            self.save_xyz(tempfile)
-            filepath = os.path.abspath(os.path.expanduser(tempfile))
-            Scatter = np.arange(10)
-            assert os.path.isfile(filepath)
-            os.remove(filepath)
-            assert os.path.isfile(filepath + '.idx')
-            os.remove(filepath + '.idx')
+        if scatterargs != self.rep_params["scatter"]:
+            self.Scatter = None
+            self.rep_params["scatter"] = scatterargs
 
+        import snet
+        if self.Scatter is None:
+            Scatter = snet.scatlite_features(self.xyz, self.Z, self.lattice, **scatterargs)
             if cache:
                 self.Scatter = Scatter
             else:
@@ -801,15 +1074,11 @@ class GrainBoundary(object):
     def atoms(self):
         """Returns an atoms object for the boundary that can be used for
         calculating the SOAP vectors.
-
-        Args:
-            Z (int): element code for the atomic species.
         """
         if self._atoms is None:
-            from quippy.atoms import Atoms
-            a = Atoms(lattice=self.lattice)
-            for xyz in self.xyz:
-                a.add_atoms(xyz, self.Z)
+            from ase import Atoms
+            a = Atoms(positions=self.xyz, numbers=self.Z)
+            a.set_cell(self.lattice)
             self._atoms = a
         return self._atoms
 
@@ -840,7 +1109,4 @@ class GrainBoundary(object):
                 for xyz in self.xyz:
                     f.write(afmt.format(species, *xyz))
         else:
-            import quippy.cinoutput as qcio
-            out = qcio.CInOutputWriter(filepath)
-            self.atoms.write(out)
-            out.close()
+            self.atoms.write(filename)

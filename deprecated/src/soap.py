@@ -2,11 +2,6 @@
 boundary.
 """
 import numpy as np
-def S(a, b):
-    """Computes the SOAP similarity kernel between two SOAP vectors,
-    :math:`d(a,b) = \sqrt{K(a,a)+K(b,b)-2*K(a,b)}`.
-    """
-    return np.sqrt(abs(np.dot(a, a) + np.dot(b, b) - 2*np.dot(a, b)))
 
 class SOAPCalculator(object):
     """Represents a set of unique SOAP parameters for which SOAP

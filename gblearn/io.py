@@ -9,6 +9,7 @@ objects and the many results they produce with disk storage.
 """
 from os import path, mkdir
 from tqdm import tqdm
+import json
 tqdm.monitor_interval = 0
 import numpy as np
 from gblearn import msg
@@ -98,8 +99,6 @@ class ResultStore(object):
         restricted (bool): when True, run in memory-restricted mode. Otherwise,
           the loaded array files are cached in memory for speedy multiple
           retrieval.
-        soapargs (dict): arguments for the SOAP descriptor. See
-          :class:`gblearn.soap.SOAPCalculator` for information.
 
     Attributes:
         root (str): path to the root directory for this result store.
@@ -112,50 +111,126 @@ class ResultStore(object):
         soapstr (list): of `str` soap arguments that are formatted to form a
           folder name for specific variations of the representations.
     """
-    soapstr = ["lmax", "nmax", "rcut"]
-    reps = ["P", "U", "ASR", "LER", "features", "Scatter"]
+    repstr = {
+        "soap": ["lmax", "nmax", "rcut"],
+        "scatter": ["density", "Layers", "SPH_L", "n_trans", "n_angle1", "n_angle2"]
+    }
+    reps = {
+        "soap": ["P", "U", "ASR", "LER", "features"],
+        "scatter": ["Scatter", "heatmaps"]
+    }
 
-    def __init__(self, gbids, root=None, restricted=True, **soapargs):
+    def __init__(self, gbids, root=None, restricted=True, padding=10.0):
         self.root = root
         self.restricted = restricted
+        self.gbids = gbids
         if root is not None:
             self.root = path.abspath(path.expanduser(root))
-            for r in self.reps:
-                setattr(self, r + '_', path.join(self.root, r))
-
-        if any(a not in soapargs for a in self.soapstr):
-            eargs = ', '.join(["`{}`".format(a) for a in self.soapstr])
-            emsg = "{} are required arguments for ResultStore.".format(eargs)
-            raise ValueError(emsg)
-
-        self.gbids = gbids
-        self.soapargs = {}
-        self.soapargs.update(soapargs)
+            self._make_repdirs()
+            self._check_padding(padding)
 
         #Set the lazy initializers for each of the representations that we
         #handle.
-        self._clobber_reps()
-        #Create the directories and validate the grain boundary ids that were
-        #passed in against any existing ones.
-        if self.root is not None:
-            self._setup_dirs()
+        self.cache = {r: {} for r in self.reps}
+        self.repargs = {r: {} for r in self.reps}
 
-    def _clobber_reps(self):
-        """Resets all the cached representation values to `None`.
+    def _check_padding(self, padding):
+        """Makes sure that the padding matches the stored value for the grain boundary
+        collection.
+
+        Args:
+            padding (float): amount of perfect bulk to include as padding around
+              the grain boundary before the representation is made.
         """
-        for r in self.reps:
-            setattr(self, '_' + r, None)
+        padfile = path.join(self.root, "padding.txt")
+        if path.isfile(padfile):
+            xpads = np.loadtxt(padfile)
+            assert abs(xpads - padding) < 1e-8
+        else:
+            np.savetxt(padfile, [padding])
 
-    def _setup_dirs(self):
+    def _make_repdirs(self):
         """Creates any missing directories if the store is not running in
         memory-only mode.
         """
         if not path.isdir(self.root):
             mkdir(self.root)
 
-        #Load any existing gbmap to make sure we are dealing with the same GB
-        #collection.
-        import json
+        self._load_gbids()
+
+        for rep, dirnames in self.reps.items():
+            repdir = path.join(self.root, rep)
+            if not path.isdir(repdir):
+                mkdir(repdir)
+            for dirname in dirnames:
+                folder = path.join(repdir, dirname)
+                if not path.isdir(folder):
+                    mkdir(folder)
+
+    def configure(self, rep, multires=None, **repargs):
+        """Configures the result store to use the specified representation.
+
+        Args:
+            rep (str): one of ["soap", "scatter"].
+            repargs (dict): specific arguments for the representation `rep`.
+        """
+        assert rep in self.repargs
+        key = ""
+
+        if multires is not None:
+            self.repargs[rep] = multires
+            for args in multires:
+                if any(a not in args for a in self.repstr[rep]):
+                    eargs = ', '.join(["`{}`".format(a) for a in self.repstr[rep]])
+                    emsg = "{} are required arguments for configuring a {} store.".format(eargs, rep)
+                    raise ValueError(emsg)
+                key += self._construct_rep_string(rep, **args) + "___"
+                self._reset_attrs(key, rep)
+            return
+
+
+        self.repargs[rep] = repargs
+        if any(a not in self.repargs[rep] for a in self.repstr[rep]):
+            eargs = ', '.join(["`{}`".format(a) for a in self.repstr[rep]])
+            emsg = "{} are required arguments for configuring a {} store.".format(eargs, rep)
+            raise ValueError(emsg)
+        key = self._construct_rep_string(rep, **repargs)
+        self._reset_attrs(key, rep)
+
+    def _construct_rep_string(self, rep, **repargs):
+
+        pmap = {
+            int: ":d",
+            float: ":.2f"
+        }
+        ptypes = [type(repargs[n]) for n in self.repstr[rep]]
+        pstrs = ["{%d%s}" % (i, pmap[ptype]) for i, ptype in enumerate(ptypes)]
+        pvals = [repargs[n] for n in self.repstr[rep]]
+        return '_'.join(pstrs).format(*pvals)
+
+    def repattr(self, rep):
+        """Returns the name of the attribute for the representation folder string.
+        """
+        return "{}str".format(rep)
+
+    def _reset_attrs(self, key, rep):
+        """Resets the strings representing the specified `rep`.
+        """
+        attrname = self.repattr(rep)
+        if hasattr(self, attrname):
+            delattr(self, attrname)
+        setattr(self, attrname, key)
+        self._clobber_reps()
+
+    def _clobber_reps(self):
+        """Resets all the cached representation values to `None`.
+        """
+        self.cache = {r: {} for r in self.reps}
+
+    def _load_gbids(self):
+        """Load any existing gbmap to make sure we are dealing with the same GB
+        collection.
+        """
         idfile = path.join(self.root, "gbids.json")
         if path.isfile(idfile):
             with open(idfile) as f:
@@ -165,44 +240,6 @@ class ResultStore(object):
         else:
             with open(idfile, 'w') as f:
                 json.dump(self.gbids, f)
-
-        dirs = ["{}_".format(r) for r in self.reps]
-        for sdir in dirs:
-            if not path.isdir(getattr(self, sdir)):
-                mkdir(getattr(self, sdir))
-
-    @property
-    def SOAP(self):
-        """Returns the current SOAP paramater configuration.
-
-        Returns:
-            tuple: of SOAP arguments used to form the directory name for
-            particular parameter sets. See :attr:`soapstr`.
-        """
-        return tuple([self.soapargs[a] for a in self.soapstr])
-
-    @SOAP.setter
-    def SOAP(self, value):
-        """Sets the current SOAP parameter configuration.
-
-        Args:
-            value (dict): of key-value SOAP parameter pairs.
-        """
-        self.soapargs.update(value)
-
-        #Clobber all of the cached values since we undid the SOAP parameters.
-        self._clobber_reps()
-
-    @property
-    def SOAP_str(self):
-        """Returns the directory string for the current SOAP configuration. It
-        is defined by `nmax_lmax_rcut`.
-        """
-        if any(p is None for p in self.SOAP):
-            raise ValueError("You can't use the result store until SOAP "
-                             "parameters have been set. Pass them to the "
-                             "constructor, or use property SOAP.")
-        return "{0:d}_{1:d}_{2:.2f}".format(*self.SOAP)
 
     @property
     def P(self):
@@ -253,6 +290,19 @@ class ResultStore(object):
         """
         self._np_set("Scatter", value)
 
+    def _find_rep(self, attr):
+        """Finds which representation the unique `attr` name belongs to.
+        """
+        result = None
+        for rep, attrs in self.reps.items():
+            if attr in attrs:
+                result = rep
+                break
+        else: #pragma: no cover
+            raise ValueError("Cannot find the representation that {} belongs to.".format(attr))
+
+        return result
+
     def _np_get(self, attr):
         """Restores a :class:`numpy.ndarray` based representation collection for
         each GB in the result store.
@@ -263,7 +313,8 @@ class ResultStore(object):
         Returns:
             dict: keys are gbid; values are the numpy arrays.
         """
-        cache = getattr(self, '_' + attr)
+        rep = self._find_rep(attr)
+        cache = self.cache[rep].get(attr)
         if cache is not None:
             return cache
 
@@ -271,10 +322,12 @@ class ResultStore(object):
         if self.root is None:
             return {}
 
-        rpath = getattr(self, attr + '_')
-        target = path.join(rpath, self.SOAP_str)
+        rpath = path.join(self.root, rep, attr)
+        if not hasattr(self, self.repattr(rep)):
+            return {}
+        target = path.join(rpath, getattr(self, self.repattr(rep)))
         result = DiskCollection(target, self.gbids, self.restricted)
-        setattr(self, '_' + attr, result)
+        self.cache[rep][attr] = result
         return result
 
     def _np_set(self, attr, value):
@@ -293,17 +346,18 @@ class ResultStore(object):
             return
 
         #Handle the memory-only case.
+        rep = self._find_rep(attr)
         if self.root is None:
-            setattr(self, '_' + attr, value)
+            self.cache[rep][attr] = value
             return
 
-        rpath = getattr(self, attr + '_')
-        target = path.join(rpath, self.SOAP_str)
+        rpath = path.join(self.root, rep, attr)
+        target = path.join(rpath, getattr(self, self.repattr(rep)))
         if not path.isdir(target):# pragma: no cover
             mkdir(target)
 
         dc = DiskCollection(target, self.gbids, self.restricted)
-        setattr(self, '_' + attr, dc)
+        self.cache[rep][attr] = dc
 
         saved = []
         for gbid, A in tqdm(value.items()):
@@ -376,7 +430,8 @@ class ResultStore(object):
         Args:
             attr (str): name of the representation to get values for.
         """
-        cache = getattr(self, '_' + attr)
+        rep = self._find_rep(attr)
+        cache = self.cache[rep].get(attr)
         if cache is not None:
             return cache
 
@@ -389,8 +444,8 @@ class ResultStore(object):
         from cPickle import load
 
         result = {}
-        rpath = getattr(self, attr + '_')
-        target = path.join(rpath, self.SOAP_str)
+        rpath = path.join(self.root, rep, attr)
+        target = path.join(rpath, getattr(self, self.repattr(rep)))
         if not path.isdir(target):
             return result
 
@@ -401,7 +456,7 @@ class ResultStore(object):
                 with open(pkl, 'rb') as f:
                     result[eps] = load(f)
 
-        setattr(self, '_' + attr, result)
+        self.cache[rep][attr] = result
         return result
 
     def _agg_set(self, attr, value):
@@ -413,16 +468,18 @@ class ResultStore(object):
             value (dict): keys are float parameter values; values are
               :class:`numpy.ndarray` aggregated representation.
         """
-        if getattr(self, '_' + attr) is None:
-            setattr(self, '_' + attr, {})
-        getattr(self, '_' + attr).update(value)
+        rep = self._find_rep(attr)
+        cache = self.cache[rep].get(attr)
+        if cache is None:
+            self.cache[rep][attr] = {}
+        self.cache[rep][attr].update(value)
 
         #Handle the memory-only case.
         if self.root is None:
             return
 
-        rpath = getattr(self, attr + '_')
-        target = path.join(rpath, self.SOAP_str)
+        rpath = path.join(self.root, rep, attr)
+        target = path.join(rpath, getattr(self, self.repattr(rep)))
         if not path.isdir(target):
             mkdir(target)
 
@@ -457,7 +514,8 @@ class ResultStore(object):
         """Returns a representation for the GB system that is based in a single
         :class:`numpy.ndarray` *without* parameter dependence (except for SOAP).
         """
-        cache = getattr(self, '_' + attr)
+        rep = self._find_rep(attr)
+        cache = self.cache[rep].get(attr)
         if cache is not None:
             return cache
 
@@ -465,20 +523,23 @@ class ResultStore(object):
         if self.root is None:
             return
 
-        rpath = getattr(self, attr + '_')
-        target = path.join(rpath, "{}.npy".format(self.SOAP_str))
+        result = None
+        rpath = path.join(self.root, rep, attr)
+        target = path.join(rpath, "{}.npy".format(getattr(self, self.repattr(rep))))
         if path.isfile(target):
-            return np.load(target)
+            result = np.load(target)
+
+        self.cache[rep][attr] = result
+        return result
 
     def _single_set(self, attr, value):
-        setattr(self, '_' + attr, value)
-
-        #Handle the memory-only case.
+        rep = self._find_rep(attr)
+        self.cache[rep][attr] = value
         if self.root is None:
             return
 
-        rpath = getattr(self, attr + '_')
-        target = path.join(rpath, "{}.npy".format(self.SOAP_str))
+        rpath = path.join(self.root, rep, attr)
+        target = path.join(rpath, "{}.npy".format(getattr(self, self.repattr(rep))))
         if not path.isfile(target):
             np.save(target, value)
 

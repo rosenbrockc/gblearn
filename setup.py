@@ -18,11 +18,11 @@ except ImportError:
 
 from os import path
 setup(name='gblearn',
-      version='0.2.1',
+      version='0.3',
       description='Machine learning grain boundary properties and structure.',
       long_description= "" if not path.isfile("README.md") else read_md('README.md'),
-      author='Conrad W Rosenbrock',
-      author_email='rosenbrockc@gmail.com',
+      author='Conrad W Rosenbrock, Derek M Hensley',
+      author_email='rosenbrockc@gmail.com, hensley.derek58@gmail.com',
       url='https://github.com/rosenbrockc/gblearn',
       license='MIT',
       setup_requires=['pytest-runner',],
@@ -32,7 +32,9 @@ setup(name='gblearn',
           "termcolor",
           "numpy",
           "matplotlib",
-          "tqdm"
+          "tqdm",
+          "ase",
+          "falconn==1.3.0"
       ],
       packages=['gblearn'],
       scripts=[],

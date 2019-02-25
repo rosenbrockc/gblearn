@@ -32,10 +32,13 @@ framework to store all representations in the `/gbs/olmsted`
 folder.
 
 ```python
+   # Load the perfect FCC as a seed so the LER can be constructed.
+   # It assumes the the seed file is found at /seeds/"Ni.pissnnl_seed.txt"
+   seed = np.loadtxt("/seeds/Ni.pissnnl_seed.txt")
+
    from gblearn.gb import GrainBoundaryCollection as GBC
    olmsted = GBC("olmsted", "/dbs/olmsted", "/gbs/olmsted",
-		 r"ni.p(?P<gbid>\d+).out",
-                 rcut=3.25, lmax=12, nmax=12, sigma=0.5)
+		 r"ni.p(?P<gbid>\d+).out", seed=seed, padding=6.50)
 
    # We explicitly call :meth:`load` to parse the GB files. Then, construct
    # the SOAP representation for each GB.
@@ -47,12 +50,7 @@ folder.
    # The SOAP representation includes padding around the boundary atoms, so
    # that each atom in the GB has a full `rcut` of atoms around it.
    # The "meth: 'soap' auto trims those atoms that don't have full environments.
-   olmsted.soap()
-
-   # Load the perfect FCC as a seed so the LER can be constructed.
-   # It assumes the the seed file is found at /seeds/"Ni.pissnnl_seed.txt"
-   seed = np.loadtxt("/seeds/Ni.pissnnl_seed.txt")
-   olmsted.seed = seed
+   olmsted.soap(rcut=3.25, lmax=12, nmax=12, sigma=0.5)
 
    #Now, we can finally construct the LER.
    olmsted.LER(0.0025)

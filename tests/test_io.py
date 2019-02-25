@@ -13,23 +13,26 @@ from gblearn.io import ResultStore
 @pytest.fixture
 def store(tmpdir):
     root = tmpdir.join("rndstore")
-    return ResultStore(range(1, 8), str(root), lmax=8, nmax=8, rcut=4.3)
+    res = ResultStore(range(1,8), str(root))
+    res.configure("soap", lmax=8, nmax=8, rcut=4.3)
+    res.configure("scatter", density=0.5, Layers=2, SPH_L=6, n_trans=8, n_angle1=8, n_angle2=8)
+    return res
 
 @pytest.fixture
 def memstore():
     """Returns a memory-only result store.
     """
-    return ResultStore(range(1, 8), lmax=8, nmax=8, rcut=4.3)
+    res = ResultStore(range(1,8))
+    res.configure("soap", lmax=8, nmax=8, rcut=4.3)
+    res.configure("scatter", density=0.5, Layers=2, SPH_L=6, n_trans=8, n_angle1=8, n_angle2=8)
+    return res
 
 def test_errors():
     """Tests raising of exceptions for faulty values.
     """
-    with pytest.raises(ValueError):
-        ResultStore(range(1, 8), lmax=8)
-
-    xstore = ResultStore(range(1, 8), lmax=8, nmax=None, rcut=4.)
-    with pytest.raises(ValueError):
-        xstore.SOAP_str
+    xstore = ResultStore(range(1, 8))
+    with pytest.raises(KeyError):
+        xstore.configure("soap", lmax=8, nmax=None, rcut=4.)
 
 def test_soapmem(memstore):
     """Tests the memory-only store for SOAP matrices.
@@ -48,10 +51,9 @@ def test_soapmem(memstore):
         assert np.allclose(memstore.P[gbid], Ps[gbid])
 
     #Now, set the SOAP args and make sure that the rep was clobbered.
-    memstore.SOAP = {"lmax": 8, "nmax": 8, "rcut": 4.3}
-    assert memstore.SOAP == (8, 8, 4.3)
+    memstore.configure("soap", lmax=8, nmax=8, rcut=4.3)
     assert memstore.P == {}
-    assert memstore.SOAP_str == "8_8_4.30"
+    assert getattr(memstore,"soapstr") == "8_8_4.30"
 
 def test_soap(store):
     """Tests the saving and restoration of random 2x2 SOAP matrices
@@ -68,7 +70,7 @@ def test_soap(store):
 
     #Check that the directory has the relevant files and that they
     #don't have zero size.
-    target = path.join(store.P_, store.SOAP_str)
+    target = path.join(store.root, "soap", "P", "8_8_4.30")
     assert path.isdir(target)
     for gbid in store.gbids:
         gbpath = path.join(target, "{}.npy".format(gbid))
@@ -76,7 +78,8 @@ def test_soap(store):
 
     #Ask for a new store so that we can load the arrays from disk and
     #check their equality.
-    nstore = ResultStore(range(1, 8), store.root, lmax=8, nmax=8, rcut=4.3)
+    nstore = ResultStore(range(1,8), store.root)
+    nstore.configure("soap", lmax=8, nmax=8, rcut=4.3)
     assert len(nstore.gbids) == len(nstore.P)
     for gbid in nstore.gbids:
         with nstore.P[gbid] as stored:
@@ -98,6 +101,11 @@ def test_scattermem(memstore):
     for gbid in memstore.gbids:
         assert np.allclose(memstore.Scatter[gbid], Scatters[gbid])
 
+    #Now, set the Scatter args and make sure that the rep was clobbered.
+    memstore.configure("scatter",density=0.5, Layers=2, SPH_L=10, n_trans=8, n_angle1=8, n_angle2=8)
+    assert memstore.Scatter == {}
+    assert getattr(memstore,"scatterstr") == "0.50_2_10_8_8_8"
+
 def test_scatter(store):
     """Tests the saving and restoration of random 2x2 Scatter matrices
     for each of the GBs.
@@ -113,7 +121,7 @@ def test_scatter(store):
 
     #Check that the directory has the relevant files and that they
     #don't have zero size.
-    target = path.join(store.Scatter_, store.SOAP_str)
+    target = path.join(store.root, "scatter", "Scatter", "0.50_2_6_8_8_8")
     assert path.isdir(target)
     for gbid in store.gbids:
         gbpath = path.join(target, "{}.npy".format(gbid))
@@ -121,7 +129,8 @@ def test_scatter(store):
 
     #Ask for a new store so that we can load the arrays from disk and
     #check their equality.
-    nstore = ResultStore(range(1, 8), store.root, lmax=8, nmax=8, rcut=4.3)
+    nstore = ResultStore(range(1, 8), store.root)
+    nstore.configure("scatter", density=0.5, Layers=2, SPH_L=6, n_trans=8, n_angle1=8, n_angle2=8)
     assert len(nstore.gbids) == len(nstore.Scatter)
     for gbid in nstore.gbids:
         with nstore.Scatter[gbid] as stored:
@@ -136,7 +145,8 @@ def test_LER(store):
 
     #Ask for a new store so that we can load the arrays from disk and
     #check their equality.
-    nstore = ResultStore(range(1, 8), store.root, lmax=8, nmax=8, rcut=4.3)
+    nstore = ResultStore(range(1, 8), store.root)
+    nstore.configure("soap", lmax=8, nmax=8, rcut=4.3)
     for e in eps:
         assert np.allclose(nstore.LER[e], LER[e])
 
@@ -158,10 +168,11 @@ def test_ASR(store):
     ASR = np.random.random((7, 6))
     store.ASR = ASR
 
-    target = path.join(store.ASR_, "{}.npy".format(store.SOAP_str))
+    target = path.join(store.root, "soap", "ASR", "8_8_4.30.npy")
     assert path.isfile(target)
 
-    nstore = ResultStore(range(1, 8), store.root, lmax=8, nmax=8, rcut=4.3)
+    nstore = ResultStore(range(1, 8), store.root)
+    nstore.configure("soap", lmax=8, nmax=8, rcut=4.3)
     assert np.allclose(nstore.ASR, ASR)
     assert np.allclose(store.ASR, ASR)
 

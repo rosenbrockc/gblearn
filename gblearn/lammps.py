@@ -2,6 +2,7 @@
 """
 import numpy as np
 from gblearn import msg
+from ase.lattice.triclinic import Triclinic
 
 def make_lattice(box):
     """Constructs a lattice array compatible with ASE using the box dimensions
@@ -12,14 +13,12 @@ def make_lattice(box):
           format `lo` `hi`. Shape `(3, 2)`. Also supports tricilinic boxes when
           shape `(3, 3)` is specified.
     """
-    from quippy.atoms import make_lattice
     if box.shape == (3, 3):
 	# http://lammps.sandia.gov/doc/Section_howto.html#howto-12 Describes the
 	# methodology (look for the section entitled "6.12. Triclinic
 	# (non-orthogonal) simulation boxes") The [a, b, c, alpha, beta, gamma]
 	# vector can be passed to the ase.Atoms object as a definition for the
-	# triclinic box (note that the quippy.Atoms class inherits from
-	# ase.Atoms) Make sure that you note that the data is provided:
+	# triclinic box. Make sure that you note that the data is provided:
 	#
 	# ITEM: BOX BOUNDS xy xz yz ....
 	# xlo_bound xhi_bound xy
@@ -27,25 +26,26 @@ def make_lattice(box):
 	# zlo_bound zhi_bound yz
 	#
 	# whereas we need xlo, xhi, etc. not xlo_bound, xhi_bound, etc.
-	xlo = box[0][0] - min(0.0, box[0][2], box[1][2], box[0][2] + box[1][2])
-	xhi = box[0][1] - max(0.0, box[0][2], box[1][2], box[0][2] + box[1][2])
-	ylo = box[1][0] - min(0.0, box[2][2])
-	yhi = box[1][1] - max(0.0, box[2][2])
-	zlo = box[2][0]
-	zhi = box[2][1]
+        xlo = box[0][0] - min(0.0, box[0][2], box[1][2], box[0][2] + box[1][2])
+        xhi = box[0][1] - max(0.0, box[0][2], box[1][2], box[0][2] + box[1][2])
+        ylo = box[1][0] - min(0.0, box[2][2])
+        yhi = box[1][1] - max(0.0, box[2][2])
+        zlo = box[2][0]
+        zhi = box[2][1]
 
-	a = (xhi - xlo)
-	b = np.sqrt((yhi - ylo)**2 + (box[0][2])**2)
-	c = np.sqrt((zhi - zlo)**2 + (box[1][2])**2 + (box[2][2])**2)
-	alpha = np.arccos((box[0][2] * box[1][2] + (yhi - ylo) * box[2][2]) / (b * c))
-	beta = np.arccos(box[1][2] / c)
-	gamma = np.arccos(box[0][2] / b)
-	return make_lattice(a, b, c, alpha, beta, gamma)
+        a = (xhi - xlo)
+        b = np.sqrt((yhi - ylo)**2 + (box[0][2])**2)
+        c = np.sqrt((zhi - zlo)**2 + (box[1][2])**2 + (box[2][2])**2)
+        rad = 180.0 / np.pi
+        alpha = rad * np.arccos((box[0][2] * box[1][2] + (yhi - ylo) * box[2][2]) / (b * c))
+        beta = rad * np.arccos(box[1][2] / c)
+        gamma = rad * np.arccos(box[0][2] / b)
+        return Triclinic("Ni", latticeconstant=(a, b, c, alpha, beta, gamma)).get_cell().T
 
     elif box.shape == (3, 2):
-	return make_lattice(box[0][1] - box[0][0],
-                            box[1][1] - box[1][0],
-                            box[2][1] - box[2][0])
+        return np.diag([box[0][1] - box[0][0],
+                        box[1][1] - box[1][0],
+                        box[2][1] - box[2][0]])
     else:
         raise ValueError("Unexpected box size/parameters: {}".format(box))
 
@@ -176,22 +176,21 @@ class Timestep(object):
                 np.allclose(self.box, other.box) and
                 self.periodic == other.periodic)
 
-    def gb(self, Z=None, method="median", pattr="c_csd", extras=True, soapargs={},
-           **kwargs):
+    def gb(self, Z=None, method="cna", pattr="c_cna", extras=True, padding=10.0,
+           **selectargs):
         """Returns the grain boundary for this time step.
 
         Args:
             Z (int or list): element code(s) for the atomic species.
-            method (str): one of ['median', 'cna', 'cna_z'].
+            method (str): one of [cna', 'cna_z', 'cna_x', 'cna_y'].
             pattr (str): name of an attribute in :attr:`extras` to pass as the
               selection parameter of the routine.
             extras (bool): when True, include extra attributes in the new GB
               structure.
-            soapargs (dict): initialization parameters for the
-              :class:`gblearn.soap.SOAPCalculator` instance for the GB.
-            kwargs (dict): additional arguments passed to the atom selection
-              function. For `median`, see :func:`gblearn.selection.median` for the
-              arguments. For `cna*` see :func:`gblearn.selection.cna_max`.
+            padding (float): amount of perfect bulk to include as padding around
+              the grain boundary before the representation is made.
+            selectargs (dict): additional arguments passed to the atom selection
+              function. For `cna*` see :func:`gblearn.selection.cna_max`.
 
         Returns:
             gblearn.gb.GrainBoundary: instance with only those atoms that appear
@@ -202,13 +201,13 @@ class Timestep(object):
                              ":class:`GrainBoundary` instance.")
 
         from gblearn.gb import GrainBoundary
-        selectargs = {
+        selargs = {
             "method": method,
             "pattr": pattr
         }
-        selectargs.update(kwargs)
+        selargs.update(selectargs)
 
-        ids = self.gbids(**selectargs)
+        ids = self.gbids(padding=padding, **selargs)
 
         if extras:
             x = {k: getattr(self, k)[ids] for k in self.extras}
@@ -216,29 +215,27 @@ class Timestep(object):
             x = None
         result = GrainBoundary(self.xyz[ids,:], self.types[ids],
                                self.box, Z, extras=x,
-                               selectargs=selectargs, **soapargs)
+                               selectargs=selargs, padding=padding)
         return result
 
-    def gbids(self, method="median", pattr=None, **kwargs):
+    def gbids(self, method="cna", pattr=None, padding=10.0, **kwargs):
         """Returns the *indices* of the atoms that lie at the grain
         boundary.
 
         Args:
-            method (str): one of ['median', 'cna', 'cna_z'].
+            method (str): one of [cna', 'cna_z', 'cna_y', 'cna_x'].
             pattr (str): name of an attribute in :attr:`extras` to pass as the
               selection parameter of the routine.
+            padding (float): amount of perfect bulk to include as padding around
+              the grain boundary before the representation is made.
             kwargs (dict): additional arguments passed to the atom selection
-              function. For `median`, see :func:`gblearn.selection.median` for the
-              arguments.
+              function. For `cna*` see :func:`gblearn.selection.cna_max`.
 
         Returns:
             numpy.ndarray: of integer indices of atoms in this timestep that are
               considered to lie on the boundary.
 
         Examples:
-            Retrieve the positions of the atoms that lie at the boundary using the
-            median centro-symmetry parameter values.
-
             >>> from gblearn.lammps import Timestep
             >>> t0 = Timestep("lammps.dump")
             >>> ids = t0.gbids()
@@ -247,13 +244,11 @@ class Timestep(object):
         import gblearn.selection as sel
         from functools import partial
         methmap = {
-            "median": sel.median,
-            "cna": partial(sel.cna_max, coord=0),
-            "cna_z": partial(sel.cna_max, coord=2)
+            "cna": partial(sel.cna_max, coord=kwargs["coord"])
             }
         if method in methmap:
             extra = getattr(self, pattr) if pattr is not None else None
-            return methmap[method](self.xyz, extra, types=self.types, **kwargs)
+            return methmap[method](self.xyz, extra, padding=padding, types=self.types, **kwargs)
 
     def dump(self, filename, mode='a', rebox=False):
         """Dumps the specified structure to file in the LAMMPS format.
@@ -407,14 +402,14 @@ class Timestep(object):
 
 		    # Changes by JPRIEDS to accommodate triclinic boxes
 		    # Written 170719
-		    if len(result["periodic"]) == 6:
-			itemstack.extend([(float, float, float)]*3)
-			current = "box"
-			result["periodic"] = result["periodic"][3:]
-		    elif len(result["periodic"]) == 3:
-			itemstack.extend([(float, float)]*3)
-			current = "box"
-		    else:# pragma: no cover
+                    if len(result["periodic"]) == 6:
+                        itemstack.extend([(float, float, float)]*3)
+                        current = "box"
+                        result["periodic"] = result["periodic"][3:]
+                    elif len(result["periodic"]) == 3:
+                        itemstack.extend([(float, float)]*3)
+                        current = "box"
+                    else:# pragma: no cover
                         emsg = "Could not classify periodic bounds: {}"
                         raise ValueError(emsg.format(result["periodic"]))
                 elif "ITEM: ATOMS" in line:
