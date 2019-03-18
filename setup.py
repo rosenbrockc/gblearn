@@ -35,7 +35,6 @@ setup(name='gblearn',
           "tqdm",
           "ase",
           "pycsoap",
-          "cPickle",
           "falconn==1.3.0"
       ],
       packages=['gblearn'],
