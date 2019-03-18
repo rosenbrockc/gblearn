@@ -28,7 +28,7 @@ def GB9(request):
     from gblearn.lammps import Timestep
     p9 = Timestep("tests/selection/ni.p9.out")
     result = p9.gb(28, coord=0)
-    result.rep_params["soap"] = {}
+    result.rep_params["soap"] = {"rcut":3.25, "lmax":12, "nmax":12}
     return result
 
 def test_properties(GBCol):
@@ -48,7 +48,7 @@ def test_K(GB9):
     """
     K = GB9.K
 
-def test_gb(GB9, tmpdir): # FIXME: Tests are based on Median selction method
+def test_gb(GB9, tmpdir):
     """Tests the basic grain boundary instance attributes and methods
     (i.e., those that don't interact with other modules).
     """
@@ -59,10 +59,10 @@ def test_gb(GB9, tmpdir): # FIXME: Tests are based on Median selction method
     fxyz = str(tmpdir.join("s9.xyz"))
     GB9.save_xyz(fxyz, "Ni")
 
-    from ase import Atoms
-    A = Atoms(fxyz)
-    B = Atoms("tests/gb/s9.xyz")
-    assert A.equivalent(B)
+    from ase.io import read
+    A = read(fxyz)
+    B = read("tests/gb/s9.xyz")
+    assert A == B
 
 def _preload_soap(GBCol):
     """Preloads all the SOAP matrices into the GB collection to speed up
@@ -101,7 +101,7 @@ def test_gbids(GBCol):
     model = (["ni.p{}.out".format(i) for i in range(453, 460)] +
              ["pissnnl.{}.npy".format(i) for i in range(453, 460)] +
              ["scatter.{}.npy".format(i) for i in range(453, 460)] +
-             ["README.md", "energy.txt"])
+             ["scatter.all.npy","README.md", "energy.txt"])
     assert list(sorted(col.gbfiles.keys())) == sorted(model)
 
 def test_gbsoap(GBCol):
@@ -120,6 +120,10 @@ def test_gbsoap(GBCol):
     #Make sure it doesn't recompute if they're all there.
     assert GBCol.soap(rcut=3.25, lmax=12, nmax=12, sigma=0.5) is GBCol.P
 
+    #Make sure the GB's were trimmed
+    for gb in GBCol.values():
+        assert gb.LAEs is not None
+
 def test_gbscatter(GBCol):
     """Tests calculation of Scatter vectors.
     """
@@ -134,6 +138,9 @@ def test_gbscatter(GBCol):
 
     #Make sure it doesn't recompute if they're all there.
     assert GBCol.scatter() is GBCol.Scatter
+
+    #Make sure the matrix returned by SM is correct
+    assert np.allclose(GBCol.SM, np.load(path.join(GBCol.root, "scatter.all.npy")))
 
 def test_gbscattercache(GB9):
     """Tests caching of Scatter vector for a single GB.

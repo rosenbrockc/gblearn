@@ -239,7 +239,7 @@ class ResultStore(object):
             assert sorted(self.gbids) == sorted(_gbids)
         else:
             with open(idfile, 'w') as f:
-                json.dump(self.gbids, f)
+                json.dump(list(self.gbids), f)
 
     @property
     def P(self):

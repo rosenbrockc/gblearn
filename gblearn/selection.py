@@ -67,7 +67,7 @@ def cna_max(xyz, cna, types=None, cna_val=1, padding=10.0, coord=None, **kwargs)
     return result
 
 @deprecated
-def median(xyz, param, limit_extent=None, tolerance=0.5, width=8., types=None, **kwargs):
+def median(xyz, param, limit_extent=None, tolerance=0.5, width=8., types=None, **kwargs): # pragma: no cover
     """Returns those atoms that deviate from the median appreciably,
     along a given axis.
 

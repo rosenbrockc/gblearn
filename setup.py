@@ -34,6 +34,7 @@ setup(name='gblearn',
           "matplotlib",
           "tqdm",
           "ase",
+          "pycsoap",
           "falconn==1.3.0"
       ],
       packages=['gblearn'],

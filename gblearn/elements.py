@@ -40,31 +40,6 @@ def atoms(element):
     emsg = "Element {} with structure {} is not auto-configurable."
     msg.err(emsg.format(element, lattice))
 
-def shells(element, n=6, rcut=6.):
-    """Returns the neighbor shells for the specified element.
-
-    Args:
-        element (str): name of the element.
-        n (int): maximum number of shells to return.
-        rcut (float): maximum cutoff to consider in looking for unique shells.
-    """
-    global _shells
-    if element not in _shells:
-        a = atoms(element)
-        a.set_cutoff(rcut)
-        a.calc_connect()
-        result = []
-        for i in a.indices:
-            for neighb in a.connect[i]:
-                dist = neighb.distance
-                deltain = [abs(dist-s) < 1e-5 for s in result]
-                if not any(deltain):
-                    result.append(dist)
-
-        _shells[element] = sorted(result)
-
-    return _shells[element][0:min((n, len(_shells[element])))]
-
 def pissnnl(element, lmax=12, nmax=12, rcut=6.0, sigma=0.5, trans_width=0.5):
     """Computes the :math:`P` matrix for the given element.
 
@@ -80,6 +55,7 @@ def pissnnl(element, lmax=12, nmax=12, rcut=6.0, sigma=0.5, trans_width=0.5):
             radial functions are smoothly transitioned to zero.
     """
     lattice, latpar, Z, basis = elements[element]
-    import pycsoap
+    from pycsoap.soaplite import SOAP
+    soap_desc = SOAP(atomic_numbers=[Z], lmax=lmax, nmax=nmax, rcut=rcut)
     a = atoms(element)
-    return SC.calc(a, Z, basis)
+    return soap_desc.create(a)

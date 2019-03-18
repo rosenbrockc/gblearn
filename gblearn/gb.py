@@ -14,19 +14,19 @@ def dissimilarity(a, b):
     """
     return np.sqrt(abs(np.dot(a, a) + np.dot(b, b) - 2*np.dot(a, b)))
 
-def _scatter_mp(gb, scatterargs):
+def _scatter_mp(idd, gb, scatterargs): # pragma: no cover
     """Wrapper function to run multiprocessing Scatter
     """
-    return gb.scatter(cache=False, **scatterargs)
+    return (idd, gb.scatter(cache=False, **scatterargs))
 
-def _mutlires_scatter_mp(gb, multires):
+def _mutlires_scatter_mp(idd, gb, multires): # pragma: no cover
     """Wrapper funciton to run multires multiprocessing Scatter
     """
     scat = []
     for args in multires:
         iscat = gb.scatter(cache=False, **args)
         scat.append(iscat)
-    return np.hstack(scat)
+    return (idd, np.hstack(scat))
 
 class GrainBoundaryCollection(OrderedDict):
     """Represents a collection of grain boundaries and the unique environments
@@ -253,7 +253,7 @@ class GrainBoundaryCollection(OrderedDict):
             custids = {g: m for g, m in enumerate(rawids)}
 
         if fname is not None:
-            if name is None:
+            if name is None: # pragma: no cover
                 msg.info("Name not specified, using {} as unique identifier".format(fname))
                 name = fname
             gbpath = path.join(self.root, fname)
@@ -373,28 +373,26 @@ class GrainBoundaryCollection(OrderedDict):
                 threads=1
 
         pbar = tqdm(total=len(self))
-        def _update(*a):
-            """Updates the tqdm bar
+        def _update(res):
+            """Updates the tqdm bar and
+                adds the completed scatter vector to the storce
             """
             pbar.update()
+            Scatter[res[0]] = res[1]
+
         pool = mp.Pool(processes=threads)
         result = {}
 
         if multires is not None:
             for gbid, gb in self.items():
-                result[gbid] = pool.apply_async(_mutlires_scatter_mp, args=(gb, multires ),
+                pool.apply_async(_mutlires_scatter_mp, args=(gbid, gb, multires ),
                                                 callback=_update)
         else:
             for gbid, gb in self.items():
-                result[gbid] = pool.apply_async(_scatter_mp, args=(gb, scatterargs ),
+                pool.apply_async(_scatter_mp, args=(gbid, gb, scatterargs ),
                                                 callback=_update)
         pool.close()
         pool.join()
-
-        for gbid, res in result.items():
-            Scatter[gbid] = res.get()
-
-
 
     @property
     def Scatter(self):
@@ -768,7 +766,7 @@ class GrainBoundaryCollection(OrderedDict):
             The LER of the specified GrainBoundary
 
         """
-        if 'eps' not in kwargs:
+        if 'eps' not in kwargs: # pragma: no cover
             raise ValueError("Epsilon is required for LER analysis")
         eps = kwargs.pop('eps')
         gb.soap(**self.repargs["soap"])
@@ -904,7 +902,7 @@ class GrainBoundary(object):
         self.Z = None
         if isinstance(Z, int):
             self.Z = np.full(len(self), Z)
-        else:
+        else: # pragma: no cover
             self.Z = np.asarray(Z)
         self.LAEs = None
         self.LER = None
@@ -920,7 +918,7 @@ class GrainBoundary(object):
             for k, v in extras.items():
                 if not hasattr(self, k):
                     setattr(self, k, v)
-                else:
+                else: # pragma: no cover
                     msg.warn("Cannot set extra attribute `{}`; "
                              "already exists.".format(k))
         else:# pragma: no cover
@@ -950,7 +948,7 @@ class GrainBoundary(object):
         norm.
         """
         if self._NP is None:
-            P = self.soap(self.rep_params["soap"])
+            P = self.soap(**self.rep_params["soap"])
             pself = np.array([np.dot(p, p) for p in P])
             self._NP = np.array([P[i,:]/np.sqrt(pself[i])
                                  for i in range(len(P))
@@ -963,8 +961,12 @@ class GrainBoundary(object):
         grain boundary.
         """
         if self._K is None:
-            NP = self.NP
-            self._K = np.dot(NP, NP.T)
+            if self.rep_params["soap"]:
+                NP = self.NP
+                self._K = np.dot(NP, NP.T)
+            else: # pragma: no cover
+                raise ValueError("Soap parameters not specified")
+
         return self._K
 
     @property
@@ -1060,12 +1062,12 @@ class GrainBoundary(object):
             self.Scatter = None
             self.rep_params["scatter"] = scatterargs
 
-        import snet
+        import SNET as snet
         if self.Scatter is None:
             Scatter = snet.scatlite_features(self.xyz, self.Z, self.lattice, **scatterargs)
             if cache:
                 self.Scatter = Scatter
-            else:
+            else: # pragma: no cover
                 return Scatter
 
         return self.Scatter
