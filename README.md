@@ -1,6 +1,7 @@
 # `gblearn`: Machine Learning for Grain Boundaries
 
 [API Documentation](https://rosenbrockc.github.io/gblearn/index.html)
+[![Build Status](https://travis-ci.com/Derek58/gblearn.svg?token=wEMTwuCdPQ3hQkPhG65X&branch=master)](https://travis-ci.com/Derek58/gblearn)
 
 Recently, we proposed a universal descriptor for grain boundaries that
 has desirable mathematical properties, and which can be applied to

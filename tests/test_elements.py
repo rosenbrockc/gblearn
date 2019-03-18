@@ -11,7 +11,7 @@ def elements(request):
     Returns:
         (list): of `str` element names.
     """
-    return ["Ni", "Cr", "Mg"]    
+    return ["Ni", "Cr", "Mg"]
 
 @pytest.fixture(scope="module", autouse=True)
 def models(request):
@@ -32,15 +32,6 @@ def test_atoms(elements, models):
 
     #Finally test the dummy case.
     assert atoms("Dummy") is None
-
-def test_shells(elements, models):
-    """Tests the nearest neighbor shell distances for the elements.
-    """
-    from gblearn.elements import shells
-    for e in elements:
-        result = shells(e)
-        modelfile = models("{}.shells.npy".format(e))
-        assert np.allclose(result, np.load(modelfile))
 
 def test_pissnnl(elements, models):
     """Tests the SOAP vector for each of the elements.
