@@ -210,7 +210,7 @@ def _preload_U(GBCol, eps):
         from pickle import load
     upkl = path.join(reporoot, "tests", "unique", "U.pkl")
     with open(upkl, 'rb') as f:
-        U = load(f)
+        U = load(f, encoding='latin1')
     GBCol.store.U = {eps: U}
     assert isinstance(GBCol.U(eps), dict)
 
