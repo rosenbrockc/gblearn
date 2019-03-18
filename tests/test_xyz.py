@@ -51,8 +51,10 @@ def test_gbxyz(XYZD):
     GBXYZ = XYZD.gb(Z=26, pattr="cna", method="cna", cna_val=3, coord=2, padding=5.)
 
     assert GBXYZ.xyz.shape == (7080, 3)
-    assert GBXYZ.extras == ['cutoff', 'adsorbate_info', 'force', 'nneightol',
-    'energy', 'positions', 'map_shift', 'numbers', 'cna', 'n_neighb', 'virial', 'csp']
+    for prop in GBXYZ.extras:
+        model = ['cutoff', 'adsorbate_info', 'force', 'nneightol',
+        'energy', 'positions', 'map_shift', 'numbers', 'cna', 'n_neighb', 'virial', 'csp']
+        assert prop in model
     assert len(GBXYZ.cna) == 7080
 
 def test_xyzLER(GBColXYZ):
