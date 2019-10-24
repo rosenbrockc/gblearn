@@ -300,8 +300,6 @@ class GrainBoundaryCollection(OrderedDict):
         if multires is not None:
             self.repargs["soap"] = multires
             self.store.configure("soap", multires)
-            for args in multires:
-                assert abs(args["rcut"] - self.padding/2.) < 1e-8
         else:
             self.repargs["soap"] = soapargs
             self.store.configure("soap", **soapargs)
