@@ -300,8 +300,6 @@ class GrainBoundaryCollection(OrderedDict):
         if multires is not None:
             self.repargs["soap"] = multires
             self.store.configure("soap", multires)
-            for args in multires:
-                assert abs(args["rcut"] - self.padding/2.) < 1e-8
         else:
             self.repargs["soap"] = soapargs
             self.store.configure("soap", **soapargs)
@@ -638,7 +636,7 @@ class GrainBoundaryCollection(OrderedDict):
 
         for i in range(len(NP)):
             Pv = NP[i,:]
-            neighbor = uni.keys()[query.find_nearest_neighbor(Pv)]
+            neighbor = list(uni.keys())[query.find_nearest_neighbor(Pv)]
             result[neighbor].append((PID, i))
             if used is not None:
                 used[neighbor] = True
