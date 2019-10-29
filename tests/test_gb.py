@@ -228,7 +228,7 @@ def test_LER(GBCol):
     U = GBCol.U(eps)
     assert LER.shape == (len(GBCol), len(U["U"]))
 
-    model = np.load(path.join(reporoot, "tests", "unique", "LER.pkl"))
+    model = np.load(path.join(reporoot, "tests", "unique", "LER.pkl"), allow_pickle=True)
     assert np.allclose(LER, model)
 
     #Make sure it doesen't recompute if they are already there
