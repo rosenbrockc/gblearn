@@ -542,7 +542,8 @@ class GrainBoundaryCollection(OrderedDict):
 
         #Create the hash tables and the query object needed for the LSH algorithm
         used = {k: False for k in U}
-        query = self.setup_hash_tables(np.vstack(U.values()), **kwargs)
+        dataset = [u for u in U.values()]
+        query = self.setup_hash_tables(np.vstack(dataset).astype(dataset[-1].dtype), **kwargs)
 
         #With the alogrithm setup loop through all the vectors to find its
         #approximate nearest unique neighbor
@@ -1017,7 +1018,7 @@ class GrainBoundary(object):
             if hasattr(current, "__getitem__"):
                 setattr(self, k, np.array(current)[ids])
 
-    def soap(self, cache=True, **soapargs):
+    def soap(self, cache=True, trim=True, **soapargs):
         """Calculates the SOAP vector matrix for the atomic environments at the
         grain boundary.
 
@@ -1039,9 +1040,10 @@ class GrainBoundary(object):
             self._K = None
 
             #Padding is required now for all Grain Boundaries.
-            ids = self.gbids
-            if ids is not None:
-                P = P[ids,:]
+            if trim:
+                ids = self.gbids
+                if ids is not None:
+                    P = P[ids,:]
 
             if cache:
                 self.P = P
