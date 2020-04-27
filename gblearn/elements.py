@@ -10,6 +10,7 @@ _shells = {}
 
 elements = {
     "Ni": ("FaceCenteredCubic", 3.52, 28, [0]),
+    "Al": ("FaceCenteredCubic", 4.05, 13, [0]),
     "Cr": ("BodyCenteredCubic", 2.91, 24, [0, 1]),
     "Mg": ("HexagonalClosedPacked", {'a':3.21, 'c/a':1.633}, 12, [0, 1])
 }

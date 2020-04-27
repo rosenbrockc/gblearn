@@ -441,7 +441,10 @@ class ResultStore(object):
 
         from glob import glob
         from gblearn.utility import chdir
-        from cPickle import load
+        try:
+            from cPickle import load
+        except ImportError:
+            from pickle import load
 
         result = {}
         rpath = path.join(self.root, rep, attr)
@@ -482,8 +485,11 @@ class ResultStore(object):
         target = path.join(rpath, getattr(self, self.repattr(rep)))
         if not path.isdir(target):
             mkdir(target)
-
-        from cPickle import dump
+        
+        try:
+            from cPickle import dump
+        except ImportError:
+            from pickle import dump
         for eps, utup in value.items():
             upath = path.join(target, "{0:.5f}.pkl".format(eps))
             if not path.isfile(upath):

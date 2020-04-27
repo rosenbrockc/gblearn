@@ -204,7 +204,10 @@ def _preload_U(GBCol, eps):
     """Preloads the set of unique vectors and the assignment of specific atoms
     to LAEs in the GB objects.
     """
-    from cPickle import load
+    try:
+        from cPickle import load
+    except:
+        from pickle import load
     upkl = path.join(reporoot, "tests", "unique", "U.pkl")
     with open(upkl, 'rb') as f:
         U = load(f)
@@ -225,7 +228,7 @@ def test_LER(GBCol):
     U = GBCol.U(eps)
     assert LER.shape == (len(GBCol), len(U["U"]))
 
-    model = np.load(path.join(reporoot, "tests", "unique", "LER.pkl"))
+    model = np.load(path.join(reporoot, "tests", "unique", "LER.pkl"), allow_pickle=True)
     assert np.allclose(LER, model)
 
     #Make sure it doesen't recompute if they are already there
